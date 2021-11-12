@@ -98,6 +98,9 @@ pallet-transaction-storage = { version = "4.0.0-dev", default-features = false, 
 pallet-uniques = { version = "4.0.0-dev", default-features = false, path = "../../../frame/uniques" }
 pallet-vesting = { version = "4.0.0-dev", default-features = false, path = "../../../frame/vesting" }
 
+# Additional pallets
+pallet-template = { version = "3.0.0", default-features = false, path = "../../../pallets/template" }
+
 [build-dependencies]
 substrate-wasm-builder = { version = "5.0.0-dev", path = "../../../utils/wasm-builder" }
 
@@ -106,7 +109,7 @@ default = ["std"]
 with-tracing = ["frame-executive/with-tracing"]
 std = [
 	"sp-authority-discovery/std",
-	"pallet-assets/std",
+#	"pallet-assets/std",
 	"pallet-authority-discovery/std",
 	"pallet-authorship/std",
 	"sp-consensus-babe/std",
@@ -171,7 +174,8 @@ std = [
 	"log/std",
 	"frame-try-runtime/std",
 	"sp-npos-elections/std",
-  "sp-io/std"
+	"sp-io/std",
+	"pallet-template/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",
@@ -212,6 +216,7 @@ runtime-benchmarks = [
 	"pallet-session-benchmarking",
 	"frame-system-benchmarking",
 	"hex-literal",
+	"pallet-template/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-executive/try-runtime",

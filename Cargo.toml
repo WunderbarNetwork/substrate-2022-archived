@@ -2,9 +2,9 @@
 resolver = "2"
 
 members = [
-	"bin/node-template/node",
-	"bin/node-template/pallets/template",
-	"bin/node-template/runtime",
+#	"bin/node-template/node",
+#	"bin/node-template/pallets/template",
+#	"bin/node-template/runtime",
 	"bin/node/bench",
 	"bin/node/cli",
 	"bin/node/test-runner-example",
@@ -136,6 +136,7 @@ members = [
 	"frame/bags-list",
 	"frame/bags-list/remote-tests",
 	"frame/bags-list/fuzzer",
+	"pallets/template",
 	"primitives/api",
 	"primitives/api/proc-macro",
 	"primitives/api/test",
