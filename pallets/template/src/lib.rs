@@ -73,7 +73,7 @@ pub mod pallet {
 
 			// Update storage.
 			<Something<T>>::put(something);
-			log::info!("Hello world!");
+			log::info!("Hello {:?}! {:?}", who, something);
 
 			// Emit an event.
 			Self::deposit_event(Event::SomethingStored(something, who));
