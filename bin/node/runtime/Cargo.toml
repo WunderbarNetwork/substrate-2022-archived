@@ -109,7 +109,7 @@ default = ["std"]
 with-tracing = ["frame-executive/with-tracing"]
 std = [
 	"sp-authority-discovery/std",
-#	"pallet-assets/std",
+	"pallet-assets/std",
 	"pallet-authority-discovery/std",
 	"pallet-authorship/std",
 	"sp-consensus-babe/std",
