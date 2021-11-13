@@ -245,7 +245,6 @@ where
 	TBl::Hash: FromStr,
 {
 	let keystore_container = KeystoreContainer::new(&config.keystore)?;
-
 	let ipfs_rt = tokio::runtime::Runtime::new().expect("Could not start the IPFS runtime!");
 
 	let task_manager = {
@@ -414,7 +413,7 @@ pub fn build_offchain_workers<TBl, TCl>(
 	spawn_handle: SpawnTaskHandle,
 	client: Arc<TCl>,
 	network: Arc<NetworkService<TBl, <TBl as BlockT>::Hash>>,
-	ipfs_rf: Arc<parking_lot::Mutex<tokio::runtime::Runtime>>,
+	ipfs_rt: Arc<parking_lot::Mutex<tokio::runtime::Runtime>>,
 ) -> Option<Arc<sc_offchain::OffchainWorkers<TCl, TBl>>>
 where
 	TBl: BlockT,
