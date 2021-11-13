@@ -41,6 +41,7 @@ use futures::{
 	future::{ready, Future},
 	prelude::*,
 };
+use ipfs::Types;
 use log::{debug, warn};
 use parking_lot::Mutex;
 use sc_network::{ExHashT, NetworkService, NetworkStateInfo, PeerId};
@@ -104,12 +105,12 @@ pub struct OffchainWorkers<Client, Block: traits::Block> {
 impl<Client, Block: traits::Block> OffchainWorkers<Client, Block> {
 	/// Creates new [`OffchainWorkers`].
 	pub fn new(client: Arc<Client>, ipfs_rt: Arc<Mutex<tokio::runtime::Runtime>>) -> Self {
-		let (ipfs_node, ipfs_info) = std::thread::swap(move || {
+		let (ipfs_node, ipfs_info) = std::thread::spawn(move || {
 			let mut ipfs_rt = ipfs_rt.lock();
 			let options = ipfs::IpfsOptions::inmemory_with_generated_keys();
 
 			ipfs_rt.block_on(async move {
-				let (ipfs, fut) = ipfs::UninitializedIpfs::new(options).start.await.unwrap();
+				let (ipfs, fut) = ipfs::UninitializedIpfs::new(options).start().await.unwrap();
 				tokio::task::spawn(fut);
 
 				let node_info = ipfs.identity().await.unwrap();
@@ -118,13 +119,13 @@ impl<Client, Block: traits::Block> OffchainWorkers<Client, Block> {
 			})
 		}).join().expect("Could not start the IPFS async runtime!");
 
-		log::info!("IPFS: Node started with PeerId {} and address {:?}", node_info.0.into_peer_id(), node_info.1);
+		log::info!("IPFS: Node started with PeerId {} and address {:?}", ipfs_info.0.into_peer_id(), ipfs_info.1);
 
 		Self::new_with_options(client, ipfs_node, OffchainWorkerOptions { enable_http_requests: true, enable_ipfs_requests: true })
 	}
 
 	/// Creates new [`OffchainWorkers`] using the given `options`.
-	pub fn new_with_options(client: Arc<Client>, ipfs_node: IPFS<::ipfs::Types>, options: OffchainWorkerOptions) -> Self {
+	pub fn new_with_options(client: Arc<Client>, ipfs_node: ipfs::Ipfs<ipfs::Types>, options: OffchainWorkerOptions) -> Self {
 		Self {
 			client,
 			ipfs_node,

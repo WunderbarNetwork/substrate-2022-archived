@@ -972,17 +972,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cid"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6b8976b33648136e969aafa6eb33d58ff0d301fa0b4e8d513db58fd32cd81aa"
-dependencies = [
- "multibase 0.9.1",
- "multihash 0.14.0",
- "unsigned-varint 0.7.0",
-]
-
-[[package]]
 name = "cipher"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4507,14 +4496,10 @@ version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "752a61cd890ff691b4411423d23816d5866dd5621e4d1c5687a53b94b5a979d8"
 dependencies = [
- "blake2b_simd",
- "blake2s_simd",
- "blake3",
  "digest 0.9.0",
  "generic-array 0.14.4",
  "multihash-derive",
  "sha2 0.9.8",
- "sha3",
  "unsigned-varint 0.7.0",
 ]
 
@@ -8462,7 +8447,7 @@ name = "sc-offchain"
 version = "4.0.0-dev"
 dependencies = [
  "bytes 1.0.1",
- "cid 0.7.0",
+ "cid 0.5.1",
  "fnv",
  "futures 0.3.16",
  "futures-timer 3.0.2",

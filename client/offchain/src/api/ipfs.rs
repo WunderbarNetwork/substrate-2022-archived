@@ -12,7 +12,10 @@
 //! https://github.com/rs-ipfs/substrate/blob/2f565db044133cacfdfc166ca9b96594644e34e9/client/offchain/src/api/ipfs.rs
 
 use crate::api::timestamp;
-use cid::{Cid, Codec};
+use cid::{
+	Cid,
+	Codec,
+};
 use fnv::FnvHashMap;
 use futures::{prelude::*, future};
 use ipfs::{
@@ -24,14 +27,18 @@ use sp_core::offchain::{IpfsRequest, IpfsRequestId, IpfsRequestStatus, IpfsRespo
 use std::{collections::BTreeMap, convert::TryInto, fmt, mem, pin::Pin, str, task::{Context, Poll}};
 use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedSender, TracingUnboundedReceiver};
 
+const DAG_PB: u64 = 0x70;
+
 // wasm-friendly implementations of Ipfs::{add, get}
-async fn ipfs_add<T: IpfsTypes>(ipfs: &Ipfs<T>, data: Vec<u8>) -> Result<Cid, ipfs::Error> {
+async fn ipfs_add<T: IpfsTypes>(ipfs: &Ipfs<T>, data: Vec<u8>) -> Result<ipfs::Cid, ipfs::Error> {
 	let dag = ipfs.dag();
 
 	let links: Vec<Ipld> = vec![];
 	let mut pb_node = BTreeMap::<String, Ipld>::new();
 	pb_node.insert("Data".to_string(), data.into());
 	pb_node.insert("Links".to_string(), links.into());
+
+	// TODO: https://docs.rs/cid/0.7.0/cid, https://docs.rs/cid/0.5.1/src/cid/codec.rs.html#9-11 https://docs.rs/ipfs/0.2.1/ipfs/type.Cid.html
 	dag.put(pb_node.into(), Codec::DagProtobuf).await
 }
 
@@ -42,7 +49,7 @@ async fn ipfs_get<T: IpfsTypes>(ipfs: &Ipfs<T>, path: IpfsPath) -> Result<Vec<u8
 }
 
 /// Creates a pair of [`IpfsApi`] and [`IpfsWorker`].
-pub fn ipfs<I: ipfs::IpfsTypes>(ipfs_node: ipfs::Ipfs<I>) -> (IpfsApi, IpfsWorker<I>) {
+pub fn ipfs<I: ::ipfs::IpfsTypes>(ipfs_node: ::ipfs::Ipfs<I>) -> (IpfsApi, IpfsWorker<I>) {
 	let (to_worker, from_api) = tracing_unbounded("mpsc_ocw_to_ipfs_worker");
 	let (to_api, from_worker) = tracing_unbounded("mpsc_ocw_to_ipfs_api");
 
@@ -55,14 +62,14 @@ pub fn ipfs<I: ipfs::IpfsTypes>(ipfs_node: ipfs::Ipfs<I>) -> (IpfsApi, IpfsWorke
 		requests: FnvHashMap::default(),
 	};
 
-	let engine = IpfsWorker {
+	let worker = IpfsWorker {
 		to_api,
 		from_api,
 		ipfs_node,
 		requests: Vec::new(),
 	};
 
-	(api, engine)
+	(api, worker)
 }
 
 /// Provides IPFS capabilities.
@@ -300,7 +307,7 @@ impl From<IpfsNativeResponse> for IpfsResponse {
 				let mut ret = Vec::with_capacity(resp.len());
 
 				for (peer_id, addrs) in resp {
-					let peer = peer_id.as_ref().to_vec();
+					let peer = peer_id.as_ref().to_bytes(); // Changed from to_vec()
 					let mut converted_addrs = Vec::with_capacity(addrs.len());
 
 					for addr in addrs {
@@ -332,7 +339,7 @@ impl From<IpfsNativeResponse> for IpfsResponse {
 					data_received,
 					dup_blks_received,
 					dup_data_received,
-					peers: peers.into_iter().map(|peer_id| peer_id.as_ref().to_vec()).collect(),
+					peers: peers.into_iter().map(|peer_id| peer_id.as_ref().to_bytes()).collect(),
 					wantlist: wantlist.into_iter().map(|(cid, prio)| (cid.to_bytes(), prio)).collect(),
 				}
 			}
@@ -358,7 +365,7 @@ impl From<IpfsNativeResponse> for IpfsResponse {
 				IpfsResponse::FindPeer(addrs)
 			},
 			IpfsNativeResponse::Identity(pk, addrs) => {
-				let pk = pk.into_peer_id().as_ref().to_vec();
+				let pk = pk.into_peer_id().as_ref().to_bytes();
 				let addrs = addrs.into_iter().map(|addr|
 					OpaqueMultiaddr(addr.to_string().into_bytes())
 				).collect();
