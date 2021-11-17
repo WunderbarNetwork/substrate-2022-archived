@@ -27,7 +27,7 @@ pub mod pallet {
 		storage::{ MutateStorageError, StorageRetrievalError, StorageValueRef },
 		storage_lock::{ BlockAndTimeDeadline, StorageLock },
 	};
-	use sp_std::{ str, vec::Vec };
+	use std::collections::{ VecDeque };
 	use log::{ error, info };
 
 	#[pallet::pallet]
@@ -41,22 +41,14 @@ pub mod pallet {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 	}
 
-/*	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
-	pub struct Command {//<T: Config> {
-		pub command: ConnectionCommand,
-		// pub requester: AccountOf<T>,
-		// pub connect_to: ConnectionCommand,
-		// pub disconnect_from: ConnectionCommand,
-	}
-*/
-	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+	#[derive(PartialEq, Eq, Clone, Debug, Encode, Decode, TypeInfo)]
 	pub enum ConnectionCommand {
 		ConnectTo(OpaqueMultiaddr),
 		DisconnectFrom(OpaqueMultiaddr),
 	}
 
-/*	#[derive(Encode, Decode, PartialEq)]
-	enum DataCommand {
+	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+	pub enum DataCommand {
 		AddBytes(Vec<u8>),
 		CatBytes(Vec<u8>),
 		InsertPin(Vec<u8>),
@@ -64,35 +56,27 @@ pub mod pallet {
 		RemovePin(Vec<u8>),
 	}
 
-	#[derive(Encode, Decode, PartialEq)]
-	enum DhtCommand {
+	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+	pub enum DhtCommand {
 		FindPeer(Vec<u8>),
 		GetProviders(Vec<u8>),
 	}
-*/
+
 	// The pallet's runtime storage items.
 	// https://docs.substrate.io/v3/runtime/storage
-
-	// #[pallet::storage]
-	// #[pallet::getter( fn connection_queue)]
-	// pub(super) type ConnectionQueue<T: Config> = StorageMap<_, Twox64Concat, T::Hash, Command>;
-	//
-	// #[pallet::storage]
-	// #[pallet::getter(fn keys)]
-	// pub(super) type Keys<T: Config> = StorageValue<_, Vec<T::Hash>>;
-
 	#[pallet::storage]
 	#[pallet::getter(fn connection_queue)]
 	pub(super) type ConnectionQueue<T: Config> = StorageValue<_, Vec<ConnectionCommand>>;
 
-/*	#[pallet::storage]
-	#[pallet::getter( fn data_queue)]
-	pub(super) type DataQueue<T: Config> = StorageMap<_, Blake2_128Concat, DataCommand, OptionQuery>;
+	/// TODO: this should be thread-safe and user-safe
+	#[pallet::storage]
+	#[pallet::getter(fn data_queue)]
+	pub(super) type DataQueue<T: Config> = StorageValue<_, VecDeque<DataCommand>>;
 
 	#[pallet::storage]
-	#[pallet::getter( fn dht_queue)]
-	pub(super) type DhtQueue<T: Config> = StorageMap<_, Blake2_128Concat, DhtCommand, OptionQuery>;
-*/
+	#[pallet::getter(fn dht_queue)]
+	pub(super) type DhtQueue<T: Config> = StorageValue<_, VecDeque<DhtCommand>>;
+
 	// Pallets use events to inform users when important changes are made.
 	// https://docs.substrate.io/v3/runtime/events-and-errors
 	#[pallet::event]
@@ -118,6 +102,30 @@ pub mod pallet {
 		NoneValue,
 		StorageOverflow,
 	}
+
+	// #[pallet::genesis_config]
+	// pub struct GenesisConfig<T: Config> {
+	// 	pub connection_queue: Vec<ConnectionCommand>,
+	// }
+	//
+	// #[cfg(feature = "std")]
+	// impl<T: Config> Default for GenesisConfig<T> {
+	// 	fn default() -> GenesisConfig<T> {
+	// 		GenesisConfig { connection_queue: vec![] }
+	// 	}
+	// }
+	//
+	// #[pallet::genesis_build]
+	// impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+	// 	fn build(&self) {
+	// 		for Some(vec![]) in &self.connection_queue {
+	// 			let _ = vec![];
+	// 		}
+	// 	}
+	// 	// fn build(&self) {
+	// 	// 	&self.kitties = vec![];
+	// 	// }
+	// }
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
@@ -177,31 +185,20 @@ pub mod pallet {
 		pub fn ipfs_connect(origin: OriginFor<T>, address: Vec<u8>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let command = ConnectionCommand::ConnectTo(OpaqueMultiaddr(address));
-			// ConnectionQueue::mutate(|commands| if !commands.exists(&command) { commands.push(command) });
-/*			// if !commands.contains(&command) { commands.put(command) }
-			// ConnectionQueue::mutate(|commands|  );
 
-			if !<ConnectionQueue<T>>::contains_key(command_hash) {
-				<ConnectionQueue<T>>::insert(command_hash, command);
-				<Keys<T>>::get().push(command_hash);
-
-				info!("IPFS: Inserting a Connect command into the ConnectionQueue!");
-			}
-
-*/
-			ConnectionQueue::<T>::mutate(|commands| command.clone());
+			ConnectionQueue::<T>::append(command);
 			Ok(Self::deposit_event(Event::ConnectionRequested(who)))
 		}
-
-	/*		/// Queues a `Multiaddr` to be disconnected. The connection will be severed during the next
+/*
+		/// Queues a `Multiaddr` to be disconnected. The connection will be severed during the next
 		/// run of the off-chain `connection_housekeeping` process.
 		#[pallet::weight(500_000)]
 		pub fn ipfs_disconnect(origin: OriginFor<T>, address: Vec<u8>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let command = ConnectionCommand::DisconnectFrom(OpaqueMultiaddr(address));
 
-			// ConnectionQueue::mutate( |commands| if !commands.contains(&command) { commands.put(command) });
-			Self::deposit_event(Event::DisconnectedRequested(who))
+			ConnectionQueue::<T>::mutate( |queue| if !queue.unwrap().contains(&command) { queue.unwrap().push_back(command) });
+			Ok(Self::deposit_event(Event::DisconnectedRequested(who)))
 		}
 
 		/// Adds arbitrary bytes to the IPFS repository. The registered `Cid` is printed out in the logs.
@@ -209,8 +206,8 @@ pub mod pallet {
 		pub fn ipfs_add_bytes(origin: OriginFor<T>, data: Vec<u8>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 
-			DataQueue::mutate( |queue| queue.put(DataCommand::AddBytes(data)));
-			Self::deposit_event(Event::QueuedDataToAdd(who))
+			DataQueue::<T>::mutate( |queue| queue.unwrap().push_back(DataCommand::AddBytes(data)));
+			Ok(Self::deposit_event(Event::QueuedDataToAdd(who)))
 		}
 
 		/// Fin IPFS data by the `Cid`; if it is valid UTF-8, it is printed in the logs.
@@ -219,8 +216,8 @@ pub mod pallet {
 		pub fn ipfs_cat_bytes(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 
-			DataQueue::mutate( |queue| queue.put(DataCommand::CatBytes(cid)));
-			Self::deposit_event(Event::QueuedDataToCat(who))
+			DataQueue::<T>::mutate( |queue| queue.unwrap().push_back(DataCommand::CatBytes(cid)));
+			Ok(Self::deposit_event(Event::QueuedDataToCat(who)))
 		}
 
 		/// Add arbitrary bytes to the IPFS repository. The registered `Cid` is printed in the logs
@@ -228,8 +225,8 @@ pub mod pallet {
 		pub fn ipfs_remove_block(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 
-			DataQueue::mutate( |queue| queue.put(DataCommand::RemoveBlock(cid)));
-			Self::deposit_event(Event::QueuedDataToRemove(who))
+			DataQueue::<T>::mutate( |queue| queue.unwrap().push_back(DataCommand::RemoveBlock(cid)));
+			Ok(Self::deposit_event(Event::QueuedDataToRemove(who)))
 		}
 
 		/// Pin a given `Cid` non-recursively.
@@ -237,8 +234,8 @@ pub mod pallet {
 		pub fn ipfs_insert_pin(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 
-			DataQueue::mutate( |queue| queue.put(DataCommand::InsertPin(cid)));
-			Self::deposit_event(Event::QueuedDataToPin(who))
+			DataQueue::<T>::mutate( |queue| queue.unwrap().push_back(DataCommand::InsertPin(cid)));
+			Ok(Self::deposit_event(Event::QueuedDataToPin(who)))
 		}
 
 		/// Unpin a given `Cid` non-recursively.
@@ -246,8 +243,8 @@ pub mod pallet {
 		pub fn ipfs_remove_pin(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 
-			DataQueue::mutate( |queue| queue.put(DataCommand::RemovePin(cid)));
-			Self::deposit_event(Event::QueuedDataToUnpin(who))
+			DataQueue::<T>::mutate( |queue| queue.unwrap().push_back(DataCommand::RemovePin(cid)));
+			Ok(Self::deposit_event(Event::QueuedDataToUnpin(who)))
 		}
 
 		/// Find addresses associated with the given `PeerId`
@@ -255,8 +252,8 @@ pub mod pallet {
 		pub fn ipfs_dht_find_peer(origin: OriginFor<T>, peer_id: Vec<u8>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 
-			DhtQueue::mutate( |queue|queue.put(DhtCommand::FindPeer(peer_id)));
-			Self::deposit_event(Event::FindPeerIssued(who))
+			DhtQueue::<T>::mutate( |queue|queue.unwrap().push_back(DhtCommand::FindPeer(peer_id)));
+			Ok(Self::deposit_event(Event::FindPeerIssued(who)))
 		}
 
 		/// Find the list of `PeerId`'s known to be hosting the given `Cid`
@@ -264,11 +261,10 @@ pub mod pallet {
 		pub fn ipfs_dht_find_providers(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 
-			DhtQueue::mutate( |queue| queue.put(DhtCommand::GetProviders(cid)));
-			Self::deposit_event(Event::FindProvidersIssued(who))
+			DhtQueue::<T>::mutate( |queue| queue.unwrap().push_back(DhtCommand::GetProviders(cid)));
+			Ok(Self::deposit_event(Event::FindProvidersIssued(who)))
 		}
-*/
-	}
+*/	}
 
 /*	impl<T: Config> Pallet<T> {
 		// `private?` helper functions
@@ -323,4 +319,5 @@ pub mod pallet {
 
 		}
 	}
-*/}
+*/
+}
