@@ -20,15 +20,23 @@ pub mod pallet {
 	use super::*;
 	use frame_system::pallet_prelude::*;
 	use sp_io::{ offchain::timestamp };
-	use frame_support::{ dispatch::DispatchResult, pallet_prelude::*, sp_runtime::traits::Hash };
+	use frame_support::{
+		dispatch::DispatchResult,
+		pallet_prelude::*,
+		sp_runtime::traits::Hash,
+	};
+
+	#[cfg(feature = "std")]
+	use frame_support::serde::{ Deserialize, Serialize };
+
 	use sp_core::offchain::{ Duration, IpfsRequest, IpfsResponse, OpaqueMultiaddr, Timestamp };
 	use sp_runtime::offchain:: {
 		ipfs,
-		storage::{ MutateStorageError, StorageRetrievalError, StorageValueRef },
-		storage_lock::{ BlockAndTimeDeadline, StorageLock },
+		// storage::{ MutateStorageError, StorageRetrievalError, StorageValueRef },
+		// storage_lock::{ BlockAndTimeDeadline, StorageLock },
 	};
 	use log::{ error, info };
-	use std::str;
+	use sp_std::{ str, vec::Vec, }; //fmt::Formatter
 
 	const TIMEOUT_DURATION: u64 = 1_000;
 
@@ -47,9 +55,10 @@ pub mod pallet {
 		- ConnectTo(OpaqueMultiaddr)
 		- DisconnectFrom(OpaqueMultiaddr) **/
 	#[derive(PartialEq, Eq, Clone, Debug, Encode, Decode, TypeInfo)]
+	#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 	pub enum ConnectionCommand {
-		ConnectTo(OpaqueMultiaddr),
-		DisconnectFrom(OpaqueMultiaddr),
+		ConnectTo(Vec<u8>),
+		DisconnectFrom(Vec<u8>),
 	}
 
 	/** Commands for interacting with IPFS `Content Addressed Data` functionality
@@ -59,6 +68,7 @@ pub mod pallet {
 	- RemoveBlock(Vec<u8>)
 	- RemovePin(Vec<u8>)**/
 	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+	#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 	pub enum DataCommand {
 		AddBytes(Vec<u8>),
 		CatBytes(Vec<u8>),
@@ -71,6 +81,7 @@ pub mod pallet {
 	- FindPeer(Vec<u8>)
 	- GetProviders(Vec<u8>)**/
 	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+	#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 	pub enum DhtCommand {
 		FindPeer(Vec<u8>),
 		GetProviders(Vec<u8>),
@@ -117,26 +128,51 @@ pub mod pallet {
 		StorageOverflow,
 	}
 
+	#[pallet::genesis_config]
+	pub struct GenesisConfig {
+		pub connection_queue: Vec<ConnectionCommand>,
+	}
+
+	#[cfg(feature = "std")]
+	impl Default for GenesisConfig {
+		fn default() -> GenesisConfig {
+			GenesisConfig {
+				connection_queue: Vec::<ConnectionCommand>::new(),
+			}
+		}
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> GenesisBuild<T> for GenesisConfig {
+		fn build(&self) {
+			return ;
+		}
+	}
+
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		fn on_initialize(block_number: BlockNumberFor<T>) -> Weight {
+			0
+		}
+
 		/** synchronize with offchain_worker activities
 			Use the ocw lock for this
 			offchain_worker configuration **/
-		fn offchain_worker(block_number: T::BlockNumber) {
-			if let Err(err) = Self::connection() {
-				error!("IPFS: Error occurred during `connection` {:?}", err);
-			}
+		fn offchain_worker(_block_number: T::BlockNumber) {
+			 if let Err(err) = Self::connection() {
+			 	error!("IPFS: Error occurred during `connection` {:?}", err);
+			 }
 
-			if let Err(err) = Self::data_request() {
-				error!("IPFS: Error occurred during `data_request` {:?}", err);
-			}
-
-			if let Err(err) = Self::handle_dht_request() {
-				error!("IPFS: Error occurred during `handle_dht_request` {:?}", err);
-			}
+			 if let Err(err) = Self::data_request() {
+			 	error!("IPFS: Error occurred during `data_request` {:?}", err);
+			 }
+			//
+			// if let Err(err) = Self::handle_dht_request() {
+			// 	// error!("IPFS: Error occurred during `handle_dht_request` {:?}", err);
+			// }
 
 			if let Err(err) = Self::print_metadata() {
-				error!("IPFS: Error occurred during `print_metadata` {:?}", err);
+				// error!("IPFS: Error occurred during `print_metadata` {:?}", err);
 			}
 		}
 	}
@@ -153,7 +189,7 @@ pub mod pallet {
 		#[pallet::weight(100_000)]
 		pub fn ipfs_connect(origin: OriginFor<T>, address: Vec<u8>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let command = ConnectionCommand::ConnectTo(OpaqueMultiaddr(address));
+			let command = ConnectionCommand::ConnectTo(address);
 
 			ConnectionQueue::<T>::append(command);
 			Ok(Self::deposit_event(Event::ConnectionRequested(who)))
@@ -165,7 +201,7 @@ pub mod pallet {
 		#[pallet::weight(500_000)]
 		pub fn ipfs_disconnect(origin: OriginFor<T>, address: Vec<u8>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let command = ConnectionCommand::DisconnectFrom(OpaqueMultiaddr(address));
+			let command = ConnectionCommand::DisconnectFrom(address);
 
 			// let mut exists = false;
 			// let existing_connections= ConnectionQueue::<T>::get().unwrap();
@@ -261,16 +297,15 @@ pub mod pallet {
 				.map_err(|error| { Error::<T>::RequestFailed })
 		}
 
-		/// TODO: refactor this
+		/** Process off-chain Connections for the running IPFS instance. **/
 		fn connection() -> Result<(), Error<T>> {
-			for command in ConnectionQueue::<T>::get().unwrap() {
-				let deadline = Self::deadline(); //Some(timestamp().add(Duration::from_millis(1_000))); // TODO: Refactor this into a constant
-
+			for command in ConnectionQueue::<T>::take().unwrap_or(Vec::new()) {
+				let deadline = Self::deadline();
 				match command {
 					ConnectionCommand::ConnectTo(address) => {
-						match Self::ipfs_request(IpfsRequest::Connect(address.clone()), deadline) {
+						match Self::ipfs_request(IpfsRequest::Connect(OpaqueMultiaddr(address.clone())), deadline) {
 							Ok(IpfsResponse::Success) => {
-								info!("IPFS: connected to {}", str::from_utf8(&address.0).expect("Our own calls can be trusted to be UTF-8"));
+								info!("IPFS: connected to {}", str::from_utf8(&address).expect("Our own calls can be trusted to be UTF-8"));
 							},
 							Ok(_) => { unreachable!("only Success can be a reponse for that request type") },
 							Err(e) => { Self::failure_message(&"connect") }, // TODO: Add error to error message
@@ -278,9 +313,9 @@ pub mod pallet {
 					},
 
 					ConnectionCommand::DisconnectFrom(address) => {
-						match Self::ipfs_request(IpfsRequest::Disconnect(address.clone()), deadline) {
+						match Self::ipfs_request(IpfsRequest::Disconnect(OpaqueMultiaddr(address.clone())), deadline) {
 							Ok(IpfsResponse::Success) => {
-								info!("IPFS: disconnected from {}", str::from_utf8(&address.0).expect("Our own calls can be trusted to be UTF-8"));
+								info!("IPFS: disconnected from {}", str::from_utf8(&address).expect("Our own calls can be trusted to be UTF-8"));
 							},
 							Ok(_) => {unreachable!("only Success can be a response for that request type")},
 							Err(e) => { Self::failure_message(&"disconnect", ) }, // TODO: Add error to error message
@@ -292,8 +327,9 @@ pub mod pallet {
 			Ok(())
 		}
 
+		//** Process the data request with IPFS offchain worker **/
 		fn data_request() -> Result<(), Error<T>> {
-			let data_messages = DataQueue::<T>::get().unwrap();
+			let data_messages = DataQueue::<T>::get().unwrap_or(Vec::new());
 			let queue_length = data_messages.len();
 
 			if queue_length > 0 {
@@ -307,7 +343,7 @@ pub mod pallet {
 				match command {
 					DataCommand::AddBytes(bytes_to_add) => {
 						match Self::ipfs_request(IpfsRequest::AddBytes(bytes_to_add.clone()), deadline) {
-							Ok(IpfsResponse::AddBytes(cid)) => { info!("IPFS: added data with Cid: {:?}", str::from_utf8(&cid)) }
+							Ok(IpfsResponse::AddBytes(cid)) => { info!("IPFS: added data with Cid: {:?}", str::from_utf8(&cid)); }
 							_ => { Self::failure_message(&"add bytes!") }, // TODO: handle error message
 						}
 					},
@@ -328,7 +364,7 @@ pub mod pallet {
 
 						match Self::ipfs_request(IpfsRequest::InsertPin(cid.clone(), false), deadline) {
 							Ok(IpfsResponse::Success) => { info!("IPFS: pinned data wit cid {:?}", utf8_cid); }
-							_ => { Self::failure_message(&format!("pin cid: {:?}", utf8_cid)); }
+							_ => { Self::failure_message(&"pin cid" ) } // &format!("pin cid {:?}", utf8_cid ))} // &format!("pin cid: {:?}", utf8_cid)); }
 						}
 					},
 					DataCommand::RemovePin(cid) => {
@@ -336,7 +372,7 @@ pub mod pallet {
 
 						match Self::ipfs_request(IpfsRequest::RemovePin(cid.clone(), false), deadline) {
 							Ok(IpfsResponse::Success) => { info!("IPFS: removed pinned cid {:?}", utf8_cid); }
-							_ => { Self::failure_message(&format!("remove pin {:?}", utf8_cid)); }
+							_ => { Self::failure_message( &"remove pin" )} // &format!("remove pin {:?}", utf8_cid)); }
 						}
 					},
 					DataCommand::RemoveBlock(cid) => {
@@ -344,7 +380,7 @@ pub mod pallet {
 
 						match Self::ipfs_request(IpfsRequest::RemoveBlock(cid.clone()), deadline) {
 							Ok(IpfsResponse::Success) => { info!("IPFS: removed block {:?}", utf8_cid); }
-							_ => { Self::failure_message(&format!("remove block {}", utf8_cid)); }
+							_ => { Self::failure_message(&"remove block") } // &format!("remove block {}", utf8_cid)); }
 						}
 
 					}
@@ -355,7 +391,7 @@ pub mod pallet {
 		}
 
 		fn handle_dht_request() -> Result<(), Error<T>> {
-			for command in DhtQueue::<T>::get().unwrap() {
+			for command in DhtQueue::<T>::take().unwrap_or(Vec::new()) {
 				let deadline = Self::deadline();
 
 				match command {
@@ -397,12 +433,16 @@ pub mod pallet {
 			let peers = if let IpfsResponse::Peers(peers) = Self::ipfs_request(IpfsRequest::Peers, deadline)? {
 				peers
 			} else {
-				vec![]
+          Vec::new()
 			};
 
 			let peers_count= peers.len();
 
 			info!("IPFS: Is currently connected to {} peers", peers_count);
+			info!("IPFS: ConnectionQueue size: {}", ConnectionQueue::<T>::decode_len().unwrap_or(0));
+			info!("IPFS: DataQueue size: {}", DataQueue::<T>::decode_len().unwrap_or(0));
+			info!("IPFS: DhtQueue size: {}", DhtQueue::<T>::decode_len().unwrap_or(0));
+
 
 			Ok(())
 		}

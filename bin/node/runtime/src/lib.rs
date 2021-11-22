@@ -87,6 +87,7 @@ pub use sp_runtime::BuildStorage;
 
 // Import pallets
 pub use pallet_template;
+pub use pallet_rs_ipfs;
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub mod impls;
@@ -1250,6 +1251,10 @@ impl pallet_template::Config for Runtime {
 	type Event = Event;
 }
 
+impl pallet_rs_ipfs::Config for Runtime {
+	type Event = Event;
+}
+
 construct_runtime!(
 	pub enum Runtime where
 		Block = Block,
@@ -1298,6 +1303,7 @@ construct_runtime!(
 		TransactionStorage: pallet_transaction_storage,
 		BagsList: pallet_bags_list,
 		Template: pallet_template,
+		RsIPFS: pallet_rs_ipfs,
 	}
 );
 
@@ -1665,6 +1671,7 @@ impl_runtime_apis! {
 			list_benchmark!(list, extra, pallet_utility, Utility);
 			list_benchmark!(list, extra, pallet_vesting, Vesting);
 			list_benchmark!(list, extra, pallet_template, Template);
+			list_benchmark!(list extra, palllet_rs_ipfs, RsIPFS);
 
 			let storage_info = AllPalletsWithSystem::storage_info();
 
@@ -1743,6 +1750,7 @@ impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_utility, Utility);
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
 			add_benchmark!(params, batches, pallet_template, Template);
+			add_benchmark!(params, batches, pallet_rs_ipfs, RsIPFS);
 
 			Ok(batches)
 		}

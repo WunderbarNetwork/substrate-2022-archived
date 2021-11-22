@@ -137,6 +137,7 @@ members = [
 	"frame/bags-list/remote-tests",
 	"frame/bags-list/fuzzer",
 	"pallets/template",
+	"pallets/rs-ipfs",
 	"primitives/api",
 	"primitives/api/proc-macro",
 	"primitives/api/test",
