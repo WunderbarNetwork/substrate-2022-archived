@@ -24,7 +24,7 @@ use node_runtime::{
 	constants::currency::*, wasm_binary_unwrap, AuthorityDiscoveryConfig, BabeConfig,
 	BalancesConfig, Block, CouncilConfig, DemocracyConfig, ElectionsConfig, GrandpaConfig,
 	ImOnlineConfig, IndicesConfig, SessionConfig, SessionKeys, SocietyConfig, StakerStatus,
-	StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig, MAX_NOMINATIONS,
+	StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig, RsIPFSConfig, MAX_NOMINATIONS,
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sc_chain_spec::ChainSpecExtension;
@@ -366,6 +366,11 @@ pub fn testnet_genesis(
 		transaction_storage: Default::default(),
 		scheduler: Default::default(),
 		transaction_payment: Default::default(),
+		rs_ipfs: RsIPFSConfig {
+			connection_queue: vec![],
+			data_queue: vec![],
+			dht_queue: vec![],
+		},
 	}
 }
 

@@ -131,6 +131,8 @@ pub mod pallet {
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {
 		pub connection_queue: Vec<ConnectionCommand>,
+		pub data_queue: Vec<DataCommand>,
+		pub dht_queue: Vec<DhtCommand>,
 	}
 
 	#[cfg(feature = "std")]
@@ -138,6 +140,8 @@ pub mod pallet {
 		fn default() -> GenesisConfig {
 			GenesisConfig {
 				connection_queue: Vec::<ConnectionCommand>::new(),
+				data_queue: Vec::<DataCommand>::new(),
+				dht_queue: Vec::<DhtCommand>::new(),
 			}
 		}
 	}
@@ -145,7 +149,7 @@ pub mod pallet {
 	#[pallet::genesis_build]
 	impl<T: Config> GenesisBuild<T> for GenesisConfig {
 		fn build(&self) {
-			return ;
+			return;
 		}
 	}
 
