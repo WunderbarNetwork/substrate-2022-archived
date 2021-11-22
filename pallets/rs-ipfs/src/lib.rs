@@ -23,7 +23,6 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		sp_runtime::traits::Hash,
 	};
 
 	#[cfg(feature = "std")]
@@ -102,8 +101,17 @@ pub mod pallet {
 	#[pallet::getter(fn dht_queue)]
 	pub(super) type DhtQueue<T: Config> = StorageValue<_, Vec<DhtCommand>>;
 
-	// Pallets use events to inform users when important changes are made.
-	// https://docs.substrate.io/v3/runtime/events-and-errors
+	/** Pallets use events to inform users when important changes are made.
+	- ConnectionRequested(T::AccountId),
+	- DisconnectedRequested(T::AccountId),
+	- QueuedDataToAdd(T::AccountId),
+	- QueuedDataToCat(T::AccountId),
+	- QueuedDataToPin(T::AccountId),
+	- QueuedDataToRemove(T::AccountId),
+	- QueuedDataToUnpin(T::AccountId),
+	- FindPeerIssued(T::AccountId),
+	- FindProvidersIssued(T::AccountId),
+	https://docs.substrate.io/v3/runtime/events-and-errors **/
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -118,7 +126,13 @@ pub mod pallet {
 		FindProvidersIssued(T::AccountId),
 	}
 
-	// Errors inform users that something went wrong.
+	/** Errors inform users that something went wrong.
+	- CannotCreateRequest,
+	- RequestTimeout,
+	- RequestFailed,
+	- NoneValue,
+	- StorageOverflow,
+	**/
 	#[pallet::error]
 	pub enum Error<T> {
 		CannotCreateRequest,
@@ -128,6 +142,12 @@ pub mod pallet {
 		StorageOverflow,
 	}
 
+	/** Modify the genesis state of the blockchain.
+	Optional values are:
+	- connection_queue: Vec<ConnectionCommand>
+	- data_queue: Vec<DataCommand>
+	- dht_queue: Vec<DhtCommand>
+	 **/
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {
 		pub connection_queue: Vec<ConnectionCommand>,
@@ -149,13 +169,13 @@ pub mod pallet {
 	#[pallet::genesis_build]
 	impl<T: Config> GenesisBuild<T> for GenesisConfig {
 		fn build(&self) {
-			return;
+			return ;
 		}
 	}
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_initialize(block_number: BlockNumberFor<T>) -> Weight {
+		fn on_initialize(_block_number: BlockNumberFor<T>) -> Weight {
 			0
 		}
 
@@ -163,20 +183,20 @@ pub mod pallet {
 			Use the ocw lock for this
 			offchain_worker configuration **/
 		fn offchain_worker(_block_number: T::BlockNumber) {
-			 if let Err(err) = Self::connection() {
-			 	error!("IPFS: Error occurred during `connection` {:?}", err);
+			 if let Err(_err) = Self::connection_requests() {
+			 	error!("IPFS: Error occurred during `connection`");
 			 }
 
-			 if let Err(err) = Self::data_request() {
-			 	error!("IPFS: Error occurred during `data_request` {:?}", err);
+			 if let Err(_err) = Self::data_request() {
+			 	error!("IPFS: Error occurred during `data_request`");
 			 }
-			//
-			// if let Err(err) = Self::handle_dht_request() {
-			// 	// error!("IPFS: Error occurred during `handle_dht_request` {:?}", err);
-			// }
 
-			if let Err(err) = Self::print_metadata() {
-				// error!("IPFS: Error occurred during `print_metadata` {:?}", err);
+			if let Err(_err) = Self::handle_dht_request() {
+				error!("IPFS: Error occurred during `handle_dht_request`");
+			}
+
+			if let Err(_err) = Self::print_metadata() {
+				error!("IPFS: Error occurred during `print_metadata`");
 			}
 		}
 	}
@@ -298,12 +318,12 @@ pub mod pallet {
 			ipfs_request.try_wait(deadline)
 				.map_err(|_| Error::<T>::RequestTimeout)?
 				.map(|req| req.response)
-				.map_err(|error| { Error::<T>::RequestFailed })
+				.map_err(|_error| { Error::<T>::RequestFailed })
 		}
 
 		/** Process off-chain Connections for the running IPFS instance. **/
-		fn connection() -> Result<(), Error<T>> {
-			for command in ConnectionQueue::<T>::take().unwrap_or(Vec::new()) {
+		fn connection_requests() -> Result<(), Error<T>> {
+			for command in ConnectionQueue::<T>::get().unwrap_or(Vec::new()) {
 				let deadline = Self::deadline();
 				match command {
 					ConnectionCommand::ConnectTo(address) => {
@@ -312,7 +332,7 @@ pub mod pallet {
 								info!("IPFS: connected to {}", str::from_utf8(&address).expect("Our own calls can be trusted to be UTF-8"));
 							},
 							Ok(_) => { unreachable!("only Success can be a reponse for that request type") },
-							Err(e) => { Self::failure_message(&"connect") }, // TODO: Add error to error message
+							Err(_e) => { Self::failure_message(&"connect") }, // TODO: Add error to error message
 						}
 					},
 
@@ -322,7 +342,7 @@ pub mod pallet {
 								info!("IPFS: disconnected from {}", str::from_utf8(&address).expect("Our own calls can be trusted to be UTF-8"));
 							},
 							Ok(_) => {unreachable!("only Success can be a response for that request type")},
-							Err(e) => { Self::failure_message(&"disconnect", ) }, // TODO: Add error to error message
+							Err(_e) => { Self::failure_message(&"disconnect", ) }, // TODO: Add error to error message
 						}
 					},
 				}
@@ -355,7 +375,7 @@ pub mod pallet {
 						match Self::ipfs_request(IpfsRequest::CatBytes(bytes_to_cat.clone()), deadline) {
 							Ok(IpfsResponse::CatBytes(bytes_received)) => {
 								if let Ok(str) = str::from_utf8(&bytes_received) {
-									info!("Ipfs: received bytes: {:?}", str::from_utf8(&bytes_received))
+									info!("Ipfs: received bytes: {:?}", str) //str::from_utf8(&bytes_received))
 								} else {
 									info!("IPFS: received bytes: {:x?}", bytes_received)
 								}
@@ -395,7 +415,7 @@ pub mod pallet {
 		}
 
 		fn handle_dht_request() -> Result<(), Error<T>> {
-			for command in DhtQueue::<T>::take().unwrap_or(Vec::new()) {
+			for command in DhtQueue::<T>::get().unwrap_or(Vec::new()) {
 				let deadline = Self::deadline();
 
 				match command {

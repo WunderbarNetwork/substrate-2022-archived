@@ -1,6 +1,6 @@
 [package]
 name = 'pallet-rs-ipfs'
-version = "1.0.0"
+version = "4.0.0-dev"
 description = "FRAME pallet template for defining custom runtime logic."
 authors = ['Dan Henton <https://github.com/danhenton>']
 homepage = "https://substrate.io/"
