@@ -19,7 +19,10 @@ mod benchmarking;
 pub mod pallet {
 	use super::*;
 	use frame_system::pallet_prelude::*;
-	use sp_io::{ offchain::{ timestamp, submit_transaction }, hashing::blake2_128 };
+	use frame_system::offchain:: {
+		CreateSignedTransaction, SendSignedTransaction, SignedPayload, Signer, SigningTypes, SubmitTransaction
+	};
+	use sp_io::{ offchain::{ timestamp }, hashing::blake2_128 };
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
@@ -87,6 +90,16 @@ pub mod pallet {
 		GetProviders(Vec<u8>),
 	}
 
+	#[derive(Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
+	#[scale_info(skip_type_params(T))]
+	pub struct CommandRequest<T: Config> {
+		pub requester: T::AccountId,
+		pub hash_id: T::Hash,
+		pub connection_command: Option<ConnectionCommand>,
+		pub data_command: Option<DataCommand>,
+		pub dht_command: Option<DhtCommand>,
+	}
+
 	// The pallet's runtime storage items.
 	// https://docs.substrate.io/v3/runtime/storage
 	#[pallet::storage]
@@ -97,6 +110,10 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn data_queue)]
 	pub(super) type DataQueue<T: Config> = StorageValue<_, Vec<DataCommand>>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn command_queue)]
+	pub(super) type CommandQueue<T: Config> = StorageValue<_, Vec<CommandRequest<T>>>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn dht_queue)]
@@ -196,6 +213,10 @@ pub mod pallet {
 				error!("IPFS: Error occurred during `print_metadata`");
 			}
 
+			if let Err(_err) = Self::command_request() {
+				error!("IPFS: command request");
+			}
+
 			 if let Err(_err) = Self::connection_requests() {
 			 	error!("IPFS: Error occurred during `connection`");
 			 }
@@ -246,13 +267,22 @@ pub mod pallet {
 
 		/// Adds arbitrary bytes to the IPFS repository. The registered `Cid` is printed out in the logs.
 		#[pallet::weight(200_000)]
-		pub fn ipfs_add_bytes(origin: OriginFor<T>, data: Vec<u8>) -> DispatchResult {
-			let who: T::AccountId = ensure_signed(origin)?;
+		pub fn ipfs_add_bytes(origin: OriginFor<T>, received_bytes: Vec<u8>) -> DispatchResult {
+			let requester: T::AccountId = ensure_signed(origin)?;
 
-			// let hash = T::Hash::hash_of(&(who.clone(), data.clone()));
+			// TODO: add the requester to the hash
+			let hash_id = T::Hashing::hash(&received_bytes.clone());
 
-			DataQueue::<T>::append( DataCommand::AddBytes(data));
-			Ok(Self::deposit_event(Event::QueuedDataToAdd(who.clone())))
+			let command = CommandRequest::<T> {
+				requester: requester.clone(),
+				hash_id,
+				data_command: Some(DataCommand::AddBytes(received_bytes)),
+				connection_command: None,
+				dht_command: None
+			};
+
+			CommandQueue::<T>::append(command);
+			Ok(Self::deposit_event(Event::QueuedDataToAdd(requester.clone())))
 		}
 
 		/** Fin IPFS data by the `Cid`; if it is valid UTF-8, it is printed in the logs.
@@ -310,15 +340,14 @@ pub mod pallet {
 			Ok(Self::deposit_event(Event::FindProvidersIssued(who)))
 		}
 
-		// #[pallet::weight(100_000)]
-		// pub fn ipfs_ocw_callback(origin: OriginFor<T>, command_as_bytes: Vec<u8>, hash: T::Hash, data_to_remove: Vec<u8>) -> DispatchResult {
-		// 	let signer = ensure_signed(origin)?;
-		//
-		// 	info!("Offchain callback hit from {:?}", signer);
-		// 	info!("{:?} {:?} {:?} {:?}", signer , command_as_bytes, hash, data_to_remove);
-		//
-		// 	Ok(())
-		// }
+		#[pallet::weight(100_000)]
+		pub fn ocw_callback(origin: OriginFor<T>, hash_id: T::Hash) -> DispatchResult {
+			let signer = ensure_signed(origin)?;
+
+			info!("Offchain callback hit from: {:?} {:?}", signer , hash_id);
+
+			Ok(())
+		}
 	}
 
 	impl<T: Config> Pallet<T> {
@@ -344,7 +373,7 @@ pub mod pallet {
 							Ok(IpfsResponse::Success) => {
 								info!("IPFS: connected to {}", str::from_utf8(&address).expect("Our own calls can be trusted to be UTF-8"));
 							},
-							Ok(_) => { unreachable!("only Success can be a reponse for that request type") },
+							Ok(_) => { unreachable!("only Success can be a response for that request type") },
 							Err(_e) => { Self::failure_message(&"connect") }, // TODO: Add error to error message
 						}
 					},
@@ -358,6 +387,39 @@ pub mod pallet {
 							Err(_e) => { Self::failure_message(&"disconnect", ) }, // TODO: Add error to error message
 						}
 					},
+				}
+			}
+
+			Ok(())
+		}
+
+		fn command_request() -> Result<(), Error<T>> {
+			let commands: Vec<CommandRequest<T>> = CommandQueue::<T>::get().unwrap_or(Vec::<CommandRequest<T>>::new());
+
+			for command in commands {
+				let deadline = Self::deadline();
+
+				match command.data_command.unwrap() {
+					DataCommand::AddBytes(bytes_to_add) => {
+						info!("Found bytes to add from: {:?} bytes: {:?} hash_id: {:?}", command.requester.clone(), bytes_to_add.clone(), command.hash_id.clone());
+
+						match Self::ipfs_request(IpfsRequest::AddBytes(bytes_to_add.clone()), deadline) {
+							Ok(IpfsResponse::AddBytes(cid)) => {
+								info!("IPFS: added data with Cid: {:?}", str::from_utf8(&cid));
+
+								// let signer = Signer::<T, T::AccountId>::new(command.requester.clone());
+								// let result = signer.send_transaction(|_account|
+								// 	Call::ocw_callback { hash_id: command.hash_id.clone() }
+								// );
+
+								// T::SubmitTransaction::sign_and_submit(Call::ocw_callback { hash_id: command.hash_id.clone() }, command.requester.clone().into());
+
+							},
+							_ => { Self::failure_message(&"add bytes!") }
+
+						}
+					}
+					_ => { Self::failure_message(&"To run commands") }, // TODO: handle error message
 				}
 			}
 
@@ -380,7 +442,6 @@ pub mod pallet {
 								// info!("IPFS CALLBACK DATA: {:?} {:?}", Vec::from("add_bytes".as_bytes()), bytes_to_add.clone());
 
 								// let call = Call::ipfs_ocw_callback({ who, Vec::from("add_bytes".as_bytes())), hash, bytes_to_add.clone() });
-								// submit_transaction()
 							}
 							_ => { Self::failure_message(&"add bytes!") }, // TODO: handle error message
 						}
@@ -483,6 +544,7 @@ pub mod pallet {
 
 			info!("{}", message);
 			info!("IPFS: Is currently connected to {} peers", peers_count);
+			info!("IPFS: CommandRequest size: {}", CommandQueue::<T>::decode_len().unwrap_or(0));
 			info!("IPFS: ConnectionQueue size: {}", ConnectionQueue::<T>::decode_len().unwrap_or(0));
 			info!("IPFS: DataQueue size: {}", DataQueue::<T>::decode_len().unwrap_or(0));
 			info!("IPFS: DhtQueue size: {}", DhtQueue::<T>::decode_len().unwrap_or(0));
