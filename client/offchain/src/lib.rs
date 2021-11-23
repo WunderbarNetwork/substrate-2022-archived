@@ -106,7 +106,7 @@ impl<Client, Block: traits::Block> OffchainWorkers<Client, Block> {
 	/// Creates new [`OffchainWorkers`].
 	pub fn new(client: Arc<Client>, ipfs_rt: Arc<Mutex<tokio::runtime::Runtime>>) -> Self {
 		let (ipfs_node, ipfs_info) = std::thread::spawn(move || {
-			let mut ipfs_rt = ipfs_rt.lock();
+			let ipfs_rt = ipfs_rt.lock();
 			let options = ipfs::IpfsOptions::inmemory_with_generated_keys();
 
 			ipfs_rt.block_on(async move {

@@ -19,10 +19,11 @@ mod benchmarking;
 pub mod pallet {
 	use super::*;
 	use frame_system::pallet_prelude::*;
-	use sp_io::{ offchain::timestamp };
+	use sp_io::{ offchain::{ timestamp, submit_transaction }, hashing::blake2_128 };
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
+		sp_runtime::traits::Hash,
 	};
 
 	#[cfg(feature = "std")]
@@ -143,6 +144,7 @@ pub mod pallet {
 	}
 
 	/** Modify the genesis state of the blockchain.
+		This is pretty pointless atm since we overwrite the data each block.
 	Optional values are:
 	- connection_queue: Vec<ConnectionCommand>
 	- data_queue: Vec<DataCommand>
@@ -169,13 +171,20 @@ pub mod pallet {
 	#[pallet::genesis_build]
 	impl<T: Config> GenesisBuild<T> for GenesisConfig {
 		fn build(&self) {
-			return ;
+			// TODO: Allow the configs to use strings, then convert them to the Vec<u8> collections.
+			ConnectionQueue::<T>::set(Some(self.connection_queue.clone()));
+			DataQueue::<T>::set(Some(self.data_queue.clone()));
+			DhtQueue::<T>::set(Some(self.dht_queue.clone()));
 		}
 	}
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(_block_number: BlockNumberFor<T>) -> Weight {
+			ConnectionQueue::<T>::set(Some(Vec::<ConnectionCommand>::new()));
+			DataQueue::<T>::set(Some(Vec::<DataCommand>::new()));
+			DhtQueue::<T>::set(Some(Vec::<DhtCommand>::new()));
+
 			0
 		}
 
@@ -183,6 +192,10 @@ pub mod pallet {
 			Use the ocw lock for this
 			offchain_worker configuration **/
 		fn offchain_worker(_block_number: T::BlockNumber) {
+			if let Err(_err) = Self::print_metadata(&"*** IPFS off-chain worker started with ***") {
+				error!("IPFS: Error occurred during `print_metadata`");
+			}
+
 			 if let Err(_err) = Self::connection_requests() {
 			 	error!("IPFS: Error occurred during `connection`");
 			 }
@@ -195,7 +208,7 @@ pub mod pallet {
 				error!("IPFS: Error occurred during `handle_dht_request`");
 			}
 
-			if let Err(_err) = Self::print_metadata() {
+			if let Err(_err) = Self::print_metadata(&"*** IPFS off-chain worker finished with ***") {
 				error!("IPFS: Error occurred during `print_metadata`");
 			}
 		}
@@ -227,18 +240,6 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 			let command = ConnectionCommand::DisconnectFrom(address);
 
-			// let mut exists = false;
-			// let existing_connections= ConnectionQueue::<T>::get().unwrap();
-			// for connection in existing_connections {
-			// 	match connection {
-			// 		ConnectionCommand::ConnectTo(OpaqueMultiaddr(address)) => {
-			// 			println!("Found matching connection");
-			// 			exists = true;
-			// 		}
-			// 		_ => {}
-			// 	}
-			// }
-
 			ConnectionQueue::<T>::append(command);
 			Ok(Self::deposit_event(Event::DisconnectedRequested(who)))
 		}
@@ -246,14 +247,16 @@ pub mod pallet {
 		/// Adds arbitrary bytes to the IPFS repository. The registered `Cid` is printed out in the logs.
 		#[pallet::weight(200_000)]
 		pub fn ipfs_add_bytes(origin: OriginFor<T>, data: Vec<u8>) -> DispatchResult {
-			let who = ensure_signed(origin)?;
+			let who: T::AccountId = ensure_signed(origin)?;
+
+			// let hash = T::Hash::hash_of(&(who.clone(), data.clone()));
 
 			DataQueue::<T>::append( DataCommand::AddBytes(data));
-			Ok(Self::deposit_event(Event::QueuedDataToAdd(who)))
+			Ok(Self::deposit_event(Event::QueuedDataToAdd(who.clone())))
 		}
 
-		/// Fin IPFS data by the `Cid`; if it is valid UTF-8, it is printed in the logs.
-		/// Otherwise the decimal representation of the bytes is displayed instead.
+		/** Fin IPFS data by the `Cid`; if it is valid UTF-8, it is printed in the logs.
+		Otherwise the decimal representation of the bytes is displayed instead. **/
 		#[pallet::weight(100_000)]
 		pub fn ipfs_cat_bytes(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -262,7 +265,7 @@ pub mod pallet {
 			Ok(Self::deposit_event(Event::QueuedDataToCat(who)))
 		}
 
-		/// Add arbitrary bytes to the IPFS repository. The registered `Cid` is printed in the logs
+		/** Add arbitrary bytes to the IPFS repository. The registered `Cid` is printed in the logs **/
 		#[pallet::weight(300_000)]
 		pub fn ipfs_remove_block(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -271,7 +274,7 @@ pub mod pallet {
 			Ok(Self::deposit_event(Event::QueuedDataToRemove(who)))
 		}
 
-		/// Pin a given `Cid` non-recursively.
+		/** Pin a given `Cid` non-recursively. **/
 		#[pallet::weight(100_000)]
 		pub fn ipfs_insert_pin(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -280,7 +283,7 @@ pub mod pallet {
 			Ok(Self::deposit_event(Event::QueuedDataToPin(who)))
 		}
 
-		/// Unpin a given `Cid` non-recursively.
+		/** Unpin a given `Cid` non-recursively. **/
 		#[pallet::weight(100_000)]
 		pub fn ipfs_remove_pin(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -289,7 +292,7 @@ pub mod pallet {
 			Ok(Self::deposit_event(Event::QueuedDataToUnpin(who)))
 		}
 
-		/// Find addresses associated with the given `PeerId`
+		/** Find addresses associated with the given `PeerId` **/
 		#[pallet::weight(100_000)]
 		pub fn ipfs_dht_find_peer(origin: OriginFor<T>, peer_id: Vec<u8>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -298,7 +301,7 @@ pub mod pallet {
 			Ok(Self::deposit_event(Event::FindPeerIssued(who)))
 		}
 
-		/// Find the list of `PeerId`'s known to be hosting the given `Cid`
+		/** Find the list of `PeerId`'s known to be hosting the given `Cid` **/
 		#[pallet::weight(100_000)]
 		pub fn ipfs_dht_find_providers(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -306,12 +309,22 @@ pub mod pallet {
 			DhtQueue::<T>::append( DhtCommand::GetProviders(cid));
 			Ok(Self::deposit_event(Event::FindProvidersIssued(who)))
 		}
+
+		// #[pallet::weight(100_000)]
+		// pub fn ipfs_ocw_callback(origin: OriginFor<T>, command_as_bytes: Vec<u8>, hash: T::Hash, data_to_remove: Vec<u8>) -> DispatchResult {
+		// 	let signer = ensure_signed(origin)?;
+		//
+		// 	info!("Offchain callback hit from {:?}", signer);
+		// 	info!("{:?} {:?} {:?} {:?}", signer , command_as_bytes, hash, data_to_remove);
+		//
+		// 	Ok(())
+		// }
 	}
 
 	impl<T: Config> Pallet<T> {
 		// `private?` helper functions
 
-		/// Send a request to the local IPFS node; Can only be called in an offchain worker.
+		/** Send a request to the local IPFS node; Can only be called in an offchain worker. **/
 		fn ipfs_request(request: IpfsRequest, deadline: impl Into<Option<Timestamp>>) -> Result<IpfsResponse, Error<T>> {
 			let ipfs_request = ipfs::PendingRequest::new(request).map_err(|_| Error::CannotCreateRequest)?;
 
@@ -354,20 +367,21 @@ pub mod pallet {
 		//** Process the data request with IPFS offchain worker **/
 		fn data_request() -> Result<(), Error<T>> {
 			let data_messages = DataQueue::<T>::get().unwrap_or(Vec::new());
-			let queue_length = data_messages.len();
+			if DataQueue::<T>::decode_len() == 0.into() { return Ok(()); }
 
-			if queue_length > 0 {
-				info!("IPFS: has {} number of data requests to process", queue_length);
-			}
-
-
-			for command in data_messages {
+			for (index, command) in data_messages.iter().enumerate() {
 				let deadline = Self::deadline();
 
 				match command {
 					DataCommand::AddBytes(bytes_to_add) => {
 						match Self::ipfs_request(IpfsRequest::AddBytes(bytes_to_add.clone()), deadline) {
-							Ok(IpfsResponse::AddBytes(cid)) => { info!("IPFS: added data with Cid: {:?}", str::from_utf8(&cid)); }
+							Ok(IpfsResponse::AddBytes(cid)) => {
+								info!("IPFS: added data with Cid: {:?}", str::from_utf8(&cid));
+								// info!("IPFS CALLBACK DATA: {:?} {:?}", Vec::from("add_bytes".as_bytes()), bytes_to_add.clone());
+
+								// let call = Call::ipfs_ocw_callback({ who, Vec::from("add_bytes".as_bytes())), hash, bytes_to_add.clone() });
+								// submit_transaction()
+							}
 							_ => { Self::failure_message(&"add bytes!") }, // TODO: handle error message
 						}
 					},
@@ -375,7 +389,7 @@ pub mod pallet {
 						match Self::ipfs_request(IpfsRequest::CatBytes(bytes_to_cat.clone()), deadline) {
 							Ok(IpfsResponse::CatBytes(bytes_received)) => {
 								if let Ok(str) = str::from_utf8(&bytes_received) {
-									info!("Ipfs: received bytes: {:?}", str) //str::from_utf8(&bytes_received))
+									info!("Ipfs: received bytes: {:?}", str);
 								} else {
 									info!("IPFS: received bytes: {:x?}", bytes_received)
 								}
@@ -388,7 +402,7 @@ pub mod pallet {
 
 						match Self::ipfs_request(IpfsRequest::InsertPin(cid.clone(), false), deadline) {
 							Ok(IpfsResponse::Success) => { info!("IPFS: pinned data wit cid {:?}", utf8_cid); }
-							_ => { Self::failure_message(&"pin cid" ) } // &format!("pin cid {:?}", utf8_cid ))} // &format!("pin cid: {:?}", utf8_cid)); }
+							_ => { Self::failure_message(&"pin cid" ) }
 						}
 					},
 					DataCommand::RemovePin(cid) => {
@@ -396,7 +410,7 @@ pub mod pallet {
 
 						match Self::ipfs_request(IpfsRequest::RemovePin(cid.clone(), false), deadline) {
 							Ok(IpfsResponse::Success) => { info!("IPFS: removed pinned cid {:?}", utf8_cid); }
-							_ => { Self::failure_message( &"remove pin" )} // &format!("remove pin {:?}", utf8_cid)); }
+							_ => { Self::failure_message( &"remove pin" )}
 						}
 					},
 					DataCommand::RemoveBlock(cid) => {
@@ -404,12 +418,17 @@ pub mod pallet {
 
 						match Self::ipfs_request(IpfsRequest::RemoveBlock(cid.clone()), deadline) {
 							Ok(IpfsResponse::Success) => { info!("IPFS: removed block {:?}", utf8_cid); }
-							_ => { Self::failure_message(&"remove block") } // &format!("remove block {}", utf8_cid)); }
+							_ => { Self::failure_message(&"remove block") }
 						}
 
 					}
 				}
 			}
+
+				// DataQueue::<T>::set(Some(remaining_messages));
+			// 	info!("end of mut remaining_messages {:?}", remaining_messages);
+			// 	*data_messages = Some(remaining_messages);
+			// });
 
 			Ok(())
 		}
@@ -451,7 +470,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		fn print_metadata() -> Result<(), Error<T>> {
+		fn print_metadata(message: &str) -> Result<(), Error<T>> {
 			let deadline = Self::deadline();
 
 			let peers = if let IpfsResponse::Peers(peers) = Self::ipfs_request(IpfsRequest::Peers, deadline)? {
@@ -462,11 +481,11 @@ pub mod pallet {
 
 			let peers_count= peers.len();
 
+			info!("{}", message);
 			info!("IPFS: Is currently connected to {} peers", peers_count);
 			info!("IPFS: ConnectionQueue size: {}", ConnectionQueue::<T>::decode_len().unwrap_or(0));
 			info!("IPFS: DataQueue size: {}", DataQueue::<T>::decode_len().unwrap_or(0));
 			info!("IPFS: DhtQueue size: {}", DhtQueue::<T>::decode_len().unwrap_or(0));
-
 
 			Ok(())
 		}

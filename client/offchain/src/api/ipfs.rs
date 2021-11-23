@@ -27,8 +27,6 @@ use sp_core::offchain::{IpfsRequest, IpfsRequestId, IpfsRequestStatus, IpfsRespo
 use std::{collections::BTreeMap, convert::TryInto, fmt, mem, pin::Pin, str, task::{Context, Poll}};
 use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedSender, TracingUnboundedReceiver};
 
-const DAG_PB: u64 = 0x70;
-
 // wasm-friendly implementations of Ipfs::{add, get}
 async fn ipfs_add<T: IpfsTypes>(ipfs: &Ipfs<T>, data: Vec<u8>) -> Result<ipfs::Cid, ipfs::Error> {
 	let dag = ipfs.dag();

@@ -324,7 +324,7 @@ impl <I: ::ipfs::IpfsTypes> AsyncApi<I> {
 	}
 
 	/// Run a processing task for the API
-	pub async fn process(mut self) {
+	pub async fn process(self) {
 		let http =  self.http.expect("`process` is only called once; qed");
 		let ipfs = self.ipfs.expect("`process` is only called once; qed");
 
