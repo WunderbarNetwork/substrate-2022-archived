@@ -1007,6 +1007,9 @@ pub mod key_types {
 	pub const REPORTING: KeyTypeId = KeyTypeId(*b"fish");
 	/// A key type ID useful for tests.
 	pub const DUMMY: KeyTypeId = KeyTypeId(*b"dumy");
+
+	/// A key type ID useful for IPFS.
+	pub const IPFS: KeyTypeId = KeyTypeId(*b"ipfs");
 }
 
 #[cfg(test)]

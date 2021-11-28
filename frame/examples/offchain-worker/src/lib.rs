@@ -176,35 +176,36 @@ pub mod pallet {
 			// significantly. You can use `RuntimeDebug` custom derive to hide details of the types
 			// in WASM. The `sp-api` crate also provides a feature `disable-logging` to disable
 			// all logging and thus, remove any logging from the WASM.
-			log::info!("Hello World from offchain workers!");
+			// log::info!("Hello World from offchain workers!");
 
 			// Since off-chain workers are just part of the runtime code, they have direct access
 			// to the storage and other included pallets.
 			//
 			// We can easily import `frame_system` and retrieve a block hash of the parent block.
 			let parent_hash = <system::Pallet<T>>::block_hash(block_number - 1u32.into());
-			log::debug!("Current block: {:?} (parent hash: {:?})", block_number, parent_hash);
+			log::info!("Current block: {:?} (parent hash: {:?})", block_number, parent_hash);
 
 			// It's a good practice to keep `fn offchain_worker()` function minimal, and move most
 			// of the code to separate `impl` block.
 			// Here we call a helper function to calculate current average price.
 			// This function reads storage entries of the current state.
 			let average: Option<u32> = Self::average_price();
-			log::debug!("Current price: {:?}", average);
+			log::info!("Current price: {:?}", average);
+			let res = Self::fetch_price_and_send_signed();
 
 			// For this example we are going to send both signed and unsigned transactions
 			// depending on the block number.
 			// Usually it's enough to choose one or the other.
-			let should_send = Self::choose_transaction_type(block_number);
-			let res = match should_send {
-				TransactionType::Signed => Self::fetch_price_and_send_signed(),
-				TransactionType::UnsignedForAny =>
-					Self::fetch_price_and_send_unsigned_for_any_account(block_number),
-				TransactionType::UnsignedForAll =>
-					Self::fetch_price_and_send_unsigned_for_all_accounts(block_number),
-				TransactionType::Raw => Self::fetch_price_and_send_raw_unsigned(block_number),
-				TransactionType::None => Ok(()),
-			};
+			// let should_send = Self::choose_transaction_type(block_number);
+			// let res = match should_send {
+			// 	TransactionType::Signed => Self::infofetch_price_and_send_signed(),
+			// 	TransactionType::UnsignedForAny =>
+			// 		Self::fetch_price_and_send_unsigned_for_any_account(block_number),
+			// 	TransactionType::UnsignedForAll =>
+			// 		Self::fetch_price_and_send_unsigned_for_all_accounts(block_number),
+			// 	TransactionType::Raw => Self::fetch_price_and_send_raw_unsigned(block_number),
+			// 	TransactionType::None => Ok(()),
+			// };
 			if let Err(e) = res {
 				log::error!("Error: {}", e);
 			}
@@ -439,15 +440,20 @@ impl<T: Config> Pallet<T> {
 
 	/// A helper function to fetch the price and send signed transaction.
 	fn fetch_price_and_send_signed() -> Result<(), &'static str> {
+		log::info!("#fetch_price_and_send_signed");
+
 		let signer = Signer::<T, T::AuthorityId>::all_accounts();
 		if !signer.can_sign() {
 			return Err(
-				"No local accounts available. Consider adding one via `author_insertKey` RPC.",
+				"*** OCW *** ---- No local accounts available. Consider adding one via `author_insertKey` RPC.",
 			)?
 		}
+
 		// Make an external HTTP request to fetch the current price.
 		// Note this call will block until response is received.
 		let price = Self::fetch_price().map_err(|_| "Failed to fetch price")?;
+
+		log::info!("Price was found: {:?}", price);
 
 		// Using `send_signed_transaction` associated type we create and submit a transaction
 		// representing the call, we've just created.
@@ -459,6 +465,8 @@ impl<T: Config> Pallet<T> {
 			// function passing `price` as an argument.
 			Call::submit_price { price }
 		});
+
+		log::info!("Number of Results: {:?}", results.len());
 
 		for (acc, res) in &results {
 			match res {

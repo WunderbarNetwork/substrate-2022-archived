@@ -4,7 +4,21 @@
 /// Edit this file to define custom logic or remove it if it is not needed.
 /// Learn more about FRAME and the core library of Substrate FRAME pallets:
 /// <https://docs.substrate.io/v3/runtime/frame>
-pub use pallet::*;
+
+use codec::{ Decode, Encode };
+use frame_system::{
+	self as system,
+	offchain::{ AppCrypto, CreateSignedTransaction, SendSignedTransaction, SignedPayload, Signer, SigningTypes, SubmitTransaction },
+};
+use sp_runtime::{
+	offchain::{
+		ipfs,
+		storage::{MutateStorageError, StorageRetrievalError, StorageValueRef}
+	},
+	transaction_validity::{InvalidTransaction, TransactionValidity, ValidTransaction},
+	RuntimeDebug
+};
+use sp_std::vec::Vec;
 
 #[cfg(test)]
 mod mock;
@@ -15,44 +29,76 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
+pub mod crypto {
+	use sp_std::prelude::*;
+	use frame_system::offchain::SigningTypes;
+	use sp_core::sr25519::Signature as Sr25519Signature;
+	use sp_core::crypto::key_types;
+	use sp_runtime::{
+		app_crypto::{app_crypto, sr25519},
+		traits::Verify,
+		MultiSignature, MultiSigner
+	};
+
+	app_crypto!(sr25519, key_types::IPFS);
+
+	pub struct TestAuthId;
+
+	impl frame_system::offchain::AppCrypto<MultiSigner, MultiSignature> for TestAuthId {
+		type RuntimeAppPublic = Public;
+		type GenericSignature = sp_core::sr25519::Signature;
+		type GenericPublic = sp_core::sr25519::Public;
+	}
+
+	// Implemented for mock runtime in tests
+	impl frame_system::offchain::AppCrypto<<Sr25519Signature as Verify>::Signer, Sr25519Signature> for TestAuthId {
+		type RuntimeAppPublic = Public;
+		type GenericSignature = sp_core::sr25519::Signature;
+		type GenericPublic = sp_core::sr25519::Public;
+	}
+}
+
+pub use pallet::*;
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
 	use frame_system::pallet_prelude::*;
-	use frame_system::offchain:: {
-		CreateSignedTransaction, SendSignedTransaction, SignedPayload, Signer, SigningTypes, SubmitTransaction
-	};
 	use sp_io::{ offchain::{ timestamp }, hashing::blake2_128 };
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
 		sp_runtime::traits::Hash,
 	};
+	use frame_system::offchain::{ SubmitTransaction, CreateSignedTransaction };
 
 	#[cfg(feature = "std")]
 	use frame_support::serde::{ Deserialize, Serialize };
 
-	use sp_core::offchain::{ Duration, IpfsRequest, IpfsResponse, OpaqueMultiaddr, Timestamp };
-	use sp_runtime::offchain:: {
-		ipfs,
-		// storage::{ MutateStorageError, StorageRetrievalError, StorageValueRef },
-		// storage_lock::{ BlockAndTimeDeadline, StorageLock },
+	use sp_core::{
+		offchain::{Duration, IpfsRequest, IpfsResponse, OpaqueMultiaddr, Timestamp}
 	};
 	use log::{ error, info };
 	use sp_std::{ str, vec::Vec, }; //fmt::Formatter
 
 	const TIMEOUT_DURATION: u64 = 1_000;
 
+	/// Configure the pallet by specifying the parameters and types on which it depends.
+	#[pallet::config]
+	pub trait Config: frame_system::Config + CreateSignedTransaction<Call<Self>> {
+		/// The identifier type for an offchain worker.
+		type AuthorityId: AppCrypto<Self::Public, Self::Signature>;
+
+		/// Because this pallet emits events, it depends on the runtime's definition of an event.
+		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+
+		/// overarching dispatch call type.
+		type Call: From<Call<Self>>;
+	}
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
-
-	/// Configure the pallet by specifying the parameters and types on which it depends.
-	#[pallet::config]
-	pub trait Config: frame_system::Config {
-		/// Because this pallet emits events, it depends on the runtime's definition of an event.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-	}
 
 	/** Commands for interacting with IPFS connections'
 		- ConnectTo(OpaqueMultiaddr)
@@ -142,6 +188,7 @@ pub mod pallet {
 		QueuedDataToUnpin(T::AccountId),
 		FindPeerIssued(T::AccountId),
 		FindProvidersIssued(T::AccountId),
+		OcwCallback(T::AccountId),
 	}
 
 	/** Errors inform users that something went wrong.
@@ -158,6 +205,8 @@ pub mod pallet {
 		RequestFailed,
 		NoneValue,
 		StorageOverflow,
+		OffchainSignedTxError,
+		NoLocalAcctForSigning,
 	}
 
 	/** Modify the genesis state of the blockchain.
@@ -209,9 +258,9 @@ pub mod pallet {
 			Use the ocw lock for this
 			offchain_worker configuration **/
 		fn offchain_worker(_block_number: T::BlockNumber) {
-			if let Err(_err) = Self::print_metadata(&"*** IPFS off-chain worker started with ***") {
-				error!("IPFS: Error occurred during `print_metadata`");
-			}
+			// if let Err(_err) = Self::print_metadata(&"*** IPFS off-chain worker started with ***") {
+			// 	error!("IPFS: Error occurred during `print_metadata`");
+			// }
 
 			if let Err(_err) = Self::command_request() {
 				error!("IPFS: command request");
@@ -229,11 +278,27 @@ pub mod pallet {
 				error!("IPFS: Error occurred during `handle_dht_request`");
 			}
 
-			if let Err(_err) = Self::print_metadata(&"*** IPFS off-chain worker finished with ***") {
-				error!("IPFS: Error occurred during `print_metadata`");
-			}
+			// if let Err(_err) = Self::print_metadata(&"*** IPFS off-chain worker finished with ***") {
+			// 	error!("IPFS: Error occurred during `print_metadata`");
+			// }
 		}
 	}
+
+	// Used in unsigned transactions.
+/*	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, scale_info::TypeInfo)]
+	pub struct Payload<Public> {
+		hash_id: Vec<u8>,
+		cid: Vec<u8>,
+		public: Public,
+	}
+
+	impl<S: SigningTypes> SignedPayload<S> for Payload<S::Public> {
+		fn public(&self) -> S::Public {
+			info!("Signing payload: {:?}", self.public.clone());
+			self.public.clone()
+		}
+	}
+*/
 
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
 	// These functions materialize as "extrinsics", which are often compared to transactions.
@@ -340,13 +405,14 @@ pub mod pallet {
 			Ok(Self::deposit_event(Event::FindProvidersIssued(who)))
 		}
 
-		#[pallet::weight(100_000)]
-		pub fn ocw_callback(origin: OriginFor<T>, hash_id: T::Hash) -> DispatchResult {
+		#[pallet::weight(0)]
+		pub fn ocw_callback(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
+			info!("Offchain callback hit from: {:?}", str::from_utf8(&cid));
+
 			let signer = ensure_signed(origin)?;
 
-			info!("Offchain callback hit from: {:?} {:?}", signer , hash_id);
-
-			Ok(())
+			info!("Offchain callback hit from: {:?} {:?}", signer , str::from_utf8(&cid));
+			Ok(Self::deposit_event(Event::OcwCallback(signer)))
 		}
 	}
 
@@ -399,21 +465,15 @@ pub mod pallet {
 			for command in commands {
 				let deadline = Self::deadline();
 
-				match command.data_command.unwrap() {
+				match command.data_command.clone().unwrap() {
 					DataCommand::AddBytes(bytes_to_add) => {
-						info!("Found bytes to add from: {:?} bytes: {:?} hash_id: {:?}", command.requester.clone(), bytes_to_add.clone(), command.hash_id.clone());
+						// info!("Found bytes to add from: {:?} bytes: {:?} hash_id: {:?}", command.requester.clone(), bytes_to_add.clone(), command.hash_id.clone());
 
 						match Self::ipfs_request(IpfsRequest::AddBytes(bytes_to_add.clone()), deadline) {
 							Ok(IpfsResponse::AddBytes(cid)) => {
 								info!("IPFS: added data with Cid: {:?}", str::from_utf8(&cid));
-
-								// let signer = Signer::<T, T::AccountId>::new(command.requester.clone());
-								// let result = signer.send_transaction(|_account|
-								// 	Call::ocw_callback { hash_id: command.hash_id.clone() }
-								// );
-
-								// T::SubmitTransaction::sign_and_submit(Call::ocw_callback { hash_id: command.hash_id.clone() }, command.requester.clone().into());
-
+								let callback = Self::signed_callback(cid);
+								return Ok(());
 							},
 							_ => { Self::failure_message(&"add bytes!") }
 
@@ -531,6 +591,8 @@ pub mod pallet {
 			Ok(())
 		}
 
+
+
 		fn print_metadata(message: &str) -> Result<(), Error<T>> {
 			let deadline = Self::deadline();
 
@@ -558,6 +620,34 @@ pub mod pallet {
 
 		fn failure_message(message: &str, ) {
 			error!("IPFS: failed to {:?}", message)
+		}
+
+		/** callback to the on-chain validators to continue processing the CID  **/
+		fn signed_callback(cid: Vec<u8>) -> Result<(), Error<T>> {
+			let signer = Signer::<T, T::AuthorityId>::all_accounts();
+			if !signer.can_sign() {
+				error!("*** IPFS *** ---- No local accounts available. Consider adding one via `author_insertKey` RPC.");
+
+				return Err(Error::<T>::RequestFailed)?
+			}
+
+			info!("attempting to sign a transaction");
+
+			let results  = signer.send_signed_transaction(|_account| {
+				Call::ocw_callback{ cid: cid.clone() }
+			});
+
+			info!("*** IPFS: result size: {:?}", results.len());
+			for (account, result) in &results {
+				info!("** reporting results **");
+
+				match result {
+					Ok(()) => { info!("callback sent: {:?}, cid: {:?}", account.public, cid.clone()); },
+					Err(e) => { error!("Failed to submit transaction {:?}", e)}
+				}
+			}
+
+			Ok(())
 		}
 	}
 }
