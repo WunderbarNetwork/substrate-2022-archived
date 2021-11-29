@@ -366,11 +366,7 @@ pub fn testnet_genesis(
 		transaction_storage: Default::default(),
 		scheduler: Default::default(),
 		transaction_payment: Default::default(),
-		rs_ipfs: RsIPFSConfig {
-			connection_queue: vec![],
-			data_queue: vec![],
-			dht_queue: vec![],
-		},
+		rs_ipfs: Default::default(),
 	}
 }
 

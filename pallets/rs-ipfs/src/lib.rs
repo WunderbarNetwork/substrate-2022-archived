@@ -20,10 +20,10 @@ use sp_runtime::{
 };
 
 use frame_support::{
-	sp_runtime::traits::{ Hash, BlakeTwo256 },
+	sp_runtime::traits::Hash,
+	traits::Randomness,
 	dispatch::DispatchResult,
 };
-// use sp_io::{ offchain::timestamp };
 
 #[cfg(feature = "std")]
 use frame_support::serde::{ Deserialize, Serialize };
@@ -91,6 +91,8 @@ pub mod pallet {
 
 		/// overarching dispatch call type.
 		type Call: From<Call<Self>>;
+
+		type IpfsRandomness: Randomness<Self::Hash, Self::BlockNumber>;
 	}
 
 	#[pallet::pallet]
@@ -138,27 +140,14 @@ pub mod pallet {
 	#[scale_info(skip_type_params(T))]
 	pub struct CommandRequest<T: Config> {
 		pub requester: T::AccountId,
-		pub uuid: Vec<u8>,
+		// pub uuid: Vec<u8>,
 		pub ipfs_command: IpfsCommand,
-	}
-
-	impl<T: Config> CommandRequest<T> {
-		fn new(requester: T::AccountId, ipfs_command: IpfsCommand) -> Self {
-			let mut command_request = CommandRequest::<T> {
-				uuid: vec![],
-				requester,
-				ipfs_command
-			};
-
-			command_request.uuid = BlakeTwo256::hash_of(&command_request).as_fixed_bytes().to_vec();
-
-			command_request.clone()
-
-		}
 	}
 
 	// The pallet's runtime storage items.
 	// https://docs.substrate.io/v3/runtime/storage
+
+	/** Store a list of Commands for the ocw to process */
 	#[pallet::storage]
 	#[pallet::getter(fn commands)]
 	pub(super) type Commands<T: Config> = StorageValue<_, Vec<CommandRequest<T>>>;
@@ -267,7 +256,7 @@ pub mod pallet {
 		pub fn ipfs_connect(origin: OriginFor<T>, address: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
 
-			let ipfs_command = CommandRequest::new(requester.clone(), IpfsCommand::ConnectTo(address));
+			let ipfs_command = CommandRequest::<T> { requester: requester.clone(), ipfs_command: IpfsCommand::ConnectTo(address) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::ConnectionRequested(requester)))
@@ -279,7 +268,7 @@ pub mod pallet {
 		#[pallet::weight(500_000)]
 		pub fn ipfs_disconnect(origin: OriginFor<T>, address: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::new(requester.clone(), IpfsCommand::DisconnectFrom(address));
+			let ipfs_command = CommandRequest::<T> { requester: requester.clone(), ipfs_command: IpfsCommand::DisconnectFrom(address) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::DisconnectedRequested(requester)))
@@ -289,7 +278,7 @@ pub mod pallet {
 		#[pallet::weight(200_000)]
 		pub fn ipfs_add_bytes(origin: OriginFor<T>, received_bytes: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::new(requester.clone(), IpfsCommand::AddBytes(received_bytes));
+			let ipfs_command = CommandRequest::<T> { requester: requester.clone(), ipfs_command: IpfsCommand::AddBytes(received_bytes) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::QueuedDataToAdd(requester)))
@@ -300,7 +289,7 @@ pub mod pallet {
 		#[pallet::weight(100_000)]
 		pub fn ipfs_cat_bytes(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::new(requester.clone(), IpfsCommand::CatBytes(cid));
+			let ipfs_command = CommandRequest::<T> { requester: requester.clone(), ipfs_command: IpfsCommand::CatBytes(cid) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::QueuedDataToCat(requester)))
@@ -310,7 +299,7 @@ pub mod pallet {
 		#[pallet::weight(300_000)]
 		pub fn ipfs_remove_block(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::new(requester.clone(), IpfsCommand::RemoveBlock(cid));
+			let ipfs_command = CommandRequest::<T> { requester: requester.clone(), ipfs_command: IpfsCommand::RemoveBlock(cid) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::QueuedDataToRemove(requester)))
@@ -320,7 +309,7 @@ pub mod pallet {
 		#[pallet::weight(100_000)]
 		pub fn ipfs_insert_pin(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::new(requester.clone(), IpfsCommand::InsertPin(cid));
+			let ipfs_command = CommandRequest::<T> { requester: requester.clone(), ipfs_command: IpfsCommand::InsertPin(cid) };
 
 			Commands::<T>::append( ipfs_command);
 			Ok(Self::deposit_event(Event::QueuedDataToPin(requester)))
@@ -330,7 +319,7 @@ pub mod pallet {
 		#[pallet::weight(100_000)]
 		pub fn ipfs_remove_pin(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::new(requester.clone(), IpfsCommand::RemovePin(cid));
+			let ipfs_command = CommandRequest::<T> { requester: requester.clone(), ipfs_command: IpfsCommand::RemovePin(cid) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::QueuedDataToUnpin(requester)))
@@ -340,7 +329,7 @@ pub mod pallet {
 		#[pallet::weight(100_000)]
 		pub fn ipfs_dht_find_peer(origin: OriginFor<T>, peer_id: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::new(requester.clone(), IpfsCommand::FindPeer(peer_id));
+			let ipfs_command = CommandRequest::<T> { requester: requester.clone(), ipfs_command: IpfsCommand::FindPeer(peer_id) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::FindPeerIssued(requester)))
@@ -350,7 +339,7 @@ pub mod pallet {
 		#[pallet::weight(100_000)]
 		pub fn ipfs_dht_find_providers(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::new(requester.clone(), IpfsCommand::GetProviders(cid));
+			let ipfs_command = CommandRequest::<T> { requester: requester.clone(), ipfs_command: IpfsCommand::GetProviders(cid) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::FindProvidersIssued(requester)))
@@ -554,6 +543,14 @@ pub mod pallet {
 			}
 
 			Ok(())
+		}
+
+		fn generate_id() -> [u8; 16] {
+			let payload = (
+					T::IpfsRandomness::random(&b"ipfs-request-id"[..]).0,
+					<frame_system::Pallet<T>>::block_number(),
+				);
+			payload.using_encoded(sp_io::hashing::blake2_256)
 		}
 
 		fn deadline() -> Option<Timestamp> {
