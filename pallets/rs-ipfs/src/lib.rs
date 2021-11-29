@@ -13,11 +13,24 @@ use frame_system::{
 use sp_runtime::{
 	offchain::{
 		ipfs,
-		storage::{MutateStorageError, StorageRetrievalError, StorageValueRef}
+		storage::{MutateStorageError, StorageRetrievalError, StorageValueRef},
 	},
 	transaction_validity::{InvalidTransaction, TransactionValidity, ValidTransaction},
 	RuntimeDebug
 };
+
+use frame_support::{
+	sp_runtime::traits::{ Hash, BlakeTwo256 },
+	dispatch::DispatchResult,
+};
+// use sp_io::{ offchain::timestamp };
+
+#[cfg(feature = "std")]
+use frame_support::serde::{ Deserialize, Serialize };
+
+use sp_core::offchain::{ Duration, IpfsRequest, IpfsResponse, OpaqueMultiaddr, Timestamp};
+use log::{ error, info };
+use sp_std::str;
 use sp_std::vec::Vec;
 
 #[cfg(test)]
@@ -30,16 +43,15 @@ mod tests;
 mod benchmarking;
 
 pub mod crypto {
-	use sp_std::prelude::*;
-	use frame_system::offchain::SigningTypes;
-	use sp_core::sr25519::Signature as Sr25519Signature;
-	use sp_core::crypto::key_types;
+	use sp_core::{
+		sr25519::Signature as Sr25519Signature,
+		crypto::key_types,
+	};
 	use sp_runtime::{
 		app_crypto::{app_crypto, sr25519},
 		traits::Verify,
 		MultiSignature, MultiSigner
 	};
-
 	app_crypto!(sr25519, key_types::IPFS);
 
 	pub struct TestAuthId;
@@ -63,23 +75,8 @@ pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
+	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
-	use sp_io::{ offchain::timestamp , hashing::blake2_128 };
-	use frame_support::{
-		dispatch::DispatchResult,
-		pallet_prelude::*,
-		sp_runtime::traits::Hash,
-	};
-	use frame_system::offchain::{ SubmitTransaction, CreateSignedTransaction };
-
-	#[cfg(feature = "std")]
-	use frame_support::serde::{ Deserialize, Serialize };
-
-	use sp_core::{
-		offchain::{Duration, IpfsRequest, IpfsResponse, OpaqueMultiaddr, Timestamp}
-	};
-	use log::{ error, info };
-	use sp_std::str;
 
 	const TIMEOUT_DURATION: u64 = 1_000;
 
@@ -146,22 +143,17 @@ pub mod pallet {
 	}
 
 	impl<T: Config> CommandRequest<T> {
-
-
 		fn new(requester: T::AccountId, ipfs_command: IpfsCommand) -> Self {
-			let mut tmp_req = CommandRequest::<T> {
+			let mut command_request = CommandRequest::<T> {
 				uuid: vec![],
 				requester,
-				ipfs_command,
+				ipfs_command
 			};
 
-			let hash_id = T::Hashing::hash_of(&tmp_req).into();
+			command_request.uuid = BlakeTwo256::hash_of(&command_request).as_fixed_bytes().to_vec();
 
-			tmp_req.uuid = hash_id;
+			command_request.clone()
 
-			info!("{:?} {:?}", tmp_req.uuid, hash_id);
-
-			tmp_req
 		}
 	}
 
@@ -565,7 +557,7 @@ pub mod pallet {
 		}
 
 		fn deadline() -> Option<Timestamp> {
-			Some(timestamp().add(Duration::from_millis(TIMEOUT_DURATION)))
+			Some(sp_io::offchain::timestamp().add(Duration::from_millis(TIMEOUT_DURATION)))
 		}
 
 		fn failure_message(message: &str, ) {
