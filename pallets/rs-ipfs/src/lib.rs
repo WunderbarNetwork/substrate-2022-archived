@@ -139,8 +139,8 @@ pub mod pallet {
 	#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 	#[scale_info(skip_type_params(T))]
 	pub struct CommandRequest<T: Config> {
+		pub identifier: [u8; 32],
 		pub requester: T::AccountId,
-		// pub uuid: Vec<u8>,
 		pub ipfs_command: IpfsCommand,
 	}
 
@@ -256,7 +256,7 @@ pub mod pallet {
 		pub fn ipfs_connect(origin: OriginFor<T>, address: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
 
-			let ipfs_command = CommandRequest::<T> { requester: requester.clone(), ipfs_command: IpfsCommand::ConnectTo(address) };
+			let ipfs_command = CommandRequest::<T> { identifier: Self::generate_id(), requester: requester.clone(), ipfs_command: IpfsCommand::ConnectTo(address) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::ConnectionRequested(requester)))
@@ -268,7 +268,7 @@ pub mod pallet {
 		#[pallet::weight(500_000)]
 		pub fn ipfs_disconnect(origin: OriginFor<T>, address: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::<T> { requester: requester.clone(), ipfs_command: IpfsCommand::DisconnectFrom(address) };
+			let ipfs_command = CommandRequest::<T> { identifier: Self::generate_id(), requester: requester.clone(), ipfs_command: IpfsCommand::DisconnectFrom(address) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::DisconnectedRequested(requester)))
@@ -278,7 +278,7 @@ pub mod pallet {
 		#[pallet::weight(200_000)]
 		pub fn ipfs_add_bytes(origin: OriginFor<T>, received_bytes: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::<T> { requester: requester.clone(), ipfs_command: IpfsCommand::AddBytes(received_bytes) };
+			let ipfs_command = CommandRequest::<T> { identifier: Self::generate_id(), requester: requester.clone(), ipfs_command: IpfsCommand::AddBytes(received_bytes) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::QueuedDataToAdd(requester)))
@@ -289,7 +289,7 @@ pub mod pallet {
 		#[pallet::weight(100_000)]
 		pub fn ipfs_cat_bytes(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::<T> { requester: requester.clone(), ipfs_command: IpfsCommand::CatBytes(cid) };
+			let ipfs_command = CommandRequest::<T> { identifier: Self::generate_id(), requester: requester.clone(), ipfs_command: IpfsCommand::CatBytes(cid) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::QueuedDataToCat(requester)))
@@ -299,7 +299,7 @@ pub mod pallet {
 		#[pallet::weight(300_000)]
 		pub fn ipfs_remove_block(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::<T> { requester: requester.clone(), ipfs_command: IpfsCommand::RemoveBlock(cid) };
+			let ipfs_command = CommandRequest::<T> { identifier: Self::generate_id(), requester: requester.clone(), ipfs_command: IpfsCommand::RemoveBlock(cid) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::QueuedDataToRemove(requester)))
@@ -309,7 +309,7 @@ pub mod pallet {
 		#[pallet::weight(100_000)]
 		pub fn ipfs_insert_pin(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::<T> { requester: requester.clone(), ipfs_command: IpfsCommand::InsertPin(cid) };
+			let ipfs_command = CommandRequest::<T> { identifier: Self::generate_id(), requester: requester.clone(), ipfs_command: IpfsCommand::InsertPin(cid) };
 
 			Commands::<T>::append( ipfs_command);
 			Ok(Self::deposit_event(Event::QueuedDataToPin(requester)))
@@ -319,7 +319,7 @@ pub mod pallet {
 		#[pallet::weight(100_000)]
 		pub fn ipfs_remove_pin(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::<T> { requester: requester.clone(), ipfs_command: IpfsCommand::RemovePin(cid) };
+			let ipfs_command = CommandRequest::<T> { identifier: Self::generate_id(), requester: requester.clone(), ipfs_command: IpfsCommand::RemovePin(cid) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::QueuedDataToUnpin(requester)))
@@ -329,7 +329,7 @@ pub mod pallet {
 		#[pallet::weight(100_000)]
 		pub fn ipfs_dht_find_peer(origin: OriginFor<T>, peer_id: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::<T> { requester: requester.clone(), ipfs_command: IpfsCommand::FindPeer(peer_id) };
+			let ipfs_command = CommandRequest::<T> { identifier: Self::generate_id(), requester: requester.clone(), ipfs_command: IpfsCommand::FindPeer(peer_id) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::FindPeerIssued(requester)))
@@ -339,7 +339,7 @@ pub mod pallet {
 		#[pallet::weight(100_000)]
 		pub fn ipfs_dht_find_providers(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::<T> { requester: requester.clone(), ipfs_command: IpfsCommand::GetProviders(cid) };
+			let ipfs_command = CommandRequest::<T> { identifier: Self::generate_id(), requester: requester.clone(), ipfs_command: IpfsCommand::GetProviders(cid) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::FindProvidersIssued(requester)))
@@ -545,7 +545,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		fn generate_id() -> [u8; 16] {
+		fn generate_id() -> [u8; 32] {
 			let payload = (
 					T::IpfsRandomness::random(&b"ipfs-request-id"[..]).0,
 					<frame_system::Pallet<T>>::block_number(),

@@ -507,6 +507,7 @@ parameter_types! {
 }
 
 use frame_election_provider_support::onchain;
+
 impl onchain::Config for Runtime {
 	type Accuracy = Perbill;
 	type DataProvider = Staking;
@@ -1258,6 +1259,7 @@ impl pallet_rs_ipfs::Config for Runtime {
 	type AuthorityId = pallet_rs_ipfs::crypto::TestAuthId;
 	type Call = Call;
 	type Event = Event;
+	type IpfsRandomness = RandomnessCollectiveFlip;
 }
 
 parameter_types! {
