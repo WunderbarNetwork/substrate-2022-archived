@@ -20,8 +20,8 @@ fn it_expects_ipfs_connect_to_add_a_connection() {
 
 	new_test_ext().execute_with(|| {
 		assert_ok!(RsIpfs::ipfs_connect(Origin::signed(1), localhost));
-		// println!("Value in connection_queue: {:?}", RsIpfs::connection_queue());
-		assert_eq!(RsIpfs::connection_queue().unwrap().len(), 1);
+		// println!("Value in commands: {:?}", RsIpfs::commands());
+		assert_eq!(RsIpfs::commands().unwrap().len(), 1);
 	});
 
 }
@@ -32,10 +32,10 @@ fn it_expects_ipfs_connect_to_have_multiple_connections() {
 
 	new_test_ext().execute_with(|| {
 		assert_ok!(RsIpfs::ipfs_connect(Origin::signed(1), localhost));
-		assert_eq!(RsIpfs::connection_queue().unwrap().len(), 1);
+		assert_eq!(RsIpfs::commands().unwrap().len(), 1);
 
 		assert_ok!(RsIpfs::ipfs_connect(Origin::signed(1), another_host));
-		assert_eq!(RsIpfs::connection_queue().unwrap().len(), 2);
+		assert_eq!(RsIpfs::commands().unwrap().len(), 2);
 	});
 }
 
@@ -46,7 +46,7 @@ fn it_expects_ipfs_disconnect_to_add_to_the_queue() {
 
 	new_test_ext().execute_with(|| {
 		assert_ok!(RsIpfs::ipfs_disconnect(Origin::signed(1), localhost));
-		assert_eq!(RsIpfs::connection_queue().unwrap().len(), 1)
+		assert_eq!(RsIpfs::commands().unwrap().len(), 1)
 	});
 }
 
@@ -57,10 +57,10 @@ fn it_expects_ipfs_disconnect_to_be_able_to_process_multiple_disconnections() {
 
 	new_test_ext().execute_with(|| {
 		assert_ok!(RsIpfs::ipfs_disconnect(Origin::signed(1), localhost));
-		assert_eq!(RsIpfs::connection_queue().unwrap().len(), 1);
+		assert_eq!(RsIpfs::commands().unwrap().len(), 1);
 
 		assert_ok!(RsIpfs::ipfs_disconnect(Origin::signed(1), another_host));
-		assert_eq!(RsIpfs::connection_queue().unwrap().len(), 2);
+		assert_eq!(RsIpfs::commands().unwrap().len(), 2);
 	});
 }
 
@@ -71,10 +71,10 @@ fn it_expects_ipfs_disconnect_to_remove_awaiting_connections() {
 
 	new_test_ext().execute_with(|| {
 		assert_ok!(RsIpfs::ipfs_connect(Origin::signed(1), localhost_connection));
-		assert_eq!(RsIpfs::connection_queue().unwrap().len(), 1);
+		assert_eq!(RsIpfs::commands().unwrap().len(), 1);
 
 		assert_ok!(RsIpfs::ipfs_disconnect(Origin::signed(1), localhost_disconnection));
-		assert_eq!(RsIpfs::connection_queue().unwrap().len(), 0);
+		assert_eq!(RsIpfs::commands().unwrap().len(), 0);
 	});
 }
 */
