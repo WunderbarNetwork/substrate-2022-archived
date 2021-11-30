@@ -226,19 +226,19 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_initialize(_block_number: BlockNumberFor<T>) -> Weight {
-			Commands::<T>::set(Some(Vec::<CommandRequest<T>>::new()));
-
-			0
-		}
+		// fn on_initialize(_block_number: BlockNumberFor<T>) -> Weight {
+		// 	Commands::<T>::set(Some(Vec::<CommandRequest<T>>::new()));
+		//
+		// 	0
+		// }
 
 		/** synchronize with offchain_worker activities
 			Use the ocw lock for this
 			offchain_worker configuration **/
-		fn offchain_worker(_block_number: T::BlockNumber) {
+		fn offchain_worker(block_number: T::BlockNumber) {
 			if let Err(_err) = Self::print_metadata(&"*** IPFS off-chain worker started with ***") { error!("IPFS: Error occurred during `print_metadata`"); }
 
-			if let Err(_err) = Self::process_command_requests() { error!("IPFS: command request"); }
+			if let Err(_err) = Self::process_command_requests(block_number) { error!("IPFS: command request"); }
 
 			if let Err(_err) = Self::print_metadata(&"*** IPFS off-chain worker finished with ***") { error!("IPFS: Error occurred during `print_metadata`"); }
 		}
@@ -346,12 +346,17 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
-		pub fn ocw_callback(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
-			info!("Offchain callback hit from: {:?}", str::from_utf8(&cid.clone()));
-
+		pub fn ocw_callback(origin: OriginFor<T>, identifier: [u8; 32], data: Vec<u8>) -> DispatchResult {
 			let signer = ensure_signed(origin)?;
 
-			info!("Offchain callback hit from: {:?} {:?}", signer , str::from_utf8(&cid.clone()));
+			// find the command using the identifier
+			// Remove it from the Commands vec, remove ref from StorageValueRef
+			// Pass CommandRequest to a callback function.
+			// - Ideally the callback function can be override by another pallet that is coupled to this one allowing for custom functionality.
+			// - data can be used for callbacks IE add a cid to the signer / uploader.
+			// - Validate a connected peer has the CID, and which peer has it etc.
+
+			info!("Offchain callback hit from: {:?}", signer);
 			Ok(Self::deposit_event(Event::OcwCallback(signer)))
 		}
 	}
@@ -375,12 +380,12 @@ pub mod pallet {
 
 			Im sure some more logic will go in here.
 		 */
-		fn process_command_requests() -> Result<(), Error<T>> {
+		fn process_command_requests(block_number: T::BlockNumber) -> Result<(), Error<T>> {
 			let commands: Vec<CommandRequest<T>> = Commands::<T>::get().unwrap_or(Vec::<CommandRequest<T>>::new());
 
 			for command_request in commands {
 
-				let result = Self::process_command(command_request);
+				let result = Self::process_command(block_number, command_request);
 			}
 
 			Ok(())
@@ -390,29 +395,44 @@ pub mod pallet {
 			1) lock the request for asynchronous processing
 			2) Call the CommandRequest.ipfs_command initializing the request
 		 */
-		fn process_command(command_request: CommandRequest<T>) -> Result<(), Error<T>>{
+		fn process_command(block_number: T::BlockNumber, command_request: CommandRequest<T>) -> Result<(), Error<T>>{
 			// TODO: Lock using the command_request_id
+			let storage = StorageValueRef::persistent(&command_request.identifier);
 
-			let deadline = Self::deadline();
+			let acquire_lock = storage.mutate(|command_identifier: Result<Option<T::BlockNumber>, StorageRetrievalError>| {
+				match command_identifier {
+					Ok(Some(block)) if block_number != block => { info!("Lock failed, lock was not in current block"); Err(()) },
+					_ => { info!("Acquired lock!"); Ok(block_number) },
+				}
+			});
 
-			match command_request.ipfs_command {
-				IpfsCommand::ConnectTo(address) 	   	=> { Self::connect_to(address, deadline) },
-				IpfsCommand::DisconnectFrom(address) 	=> { Self::disconnect_from(address, deadline) },
-				IpfsCommand::AddBytes(bytes_to_add)  	=> { Self::add_bytes(bytes_to_add, deadline) },
-				IpfsCommand::CatBytes(cid)				=> { Self::cat_bytes(cid, deadline) },
-				IpfsCommand::InsertPin(cid) 			=> { Self::insert_pin(cid, deadline) },
-				IpfsCommand::RemovePin(cid) 			=> { Self::remove_pin(cid, deadline) },
-				IpfsCommand::RemoveBlock(cid) 			=> { Self::remove_block(cid, deadline) },
-				IpfsCommand::FindPeer(peer_id) 		=> { Self::find_peer(peer_id, deadline) },
-				IpfsCommand::GetProviders(cid) 		=> { Self::get_providers(cid, deadline) },
+			match acquire_lock {
+				Ok(block) => {
+					let deadline = Self::deadline();
+
+					match command_request.ipfs_command {
+						IpfsCommand::ConnectTo(ref address) 	   	=> { Self::connect_to(&command_request, address, deadline) },
+						IpfsCommand::DisconnectFrom(ref address) 	=> { Self::disconnect_from(&command_request, address, deadline) },
+						IpfsCommand::AddBytes(ref bytes_to_add)  	=> { Self::add_bytes(&command_request, bytes_to_add, deadline) },
+						IpfsCommand::CatBytes(ref cid)			=> { Self::cat_bytes(&command_request, cid, deadline) },
+						IpfsCommand::InsertPin(ref cid) 			=> { Self::insert_pin(&command_request, cid,  deadline) },
+						IpfsCommand::RemovePin(ref cid) 			=> { Self::remove_pin(&command_request, cid, deadline) },
+						IpfsCommand::RemoveBlock(ref cid) 		=> { Self::remove_block(&command_request, cid, deadline) },
+						IpfsCommand::FindPeer(ref peer_id) 		=> { Self::find_peer(&command_request, peer_id, deadline) },
+						IpfsCommand::GetProviders(ref cid) 		=> { Self::get_providers(&command_request, cid, deadline) },
+					}
+				},
+				_ => {
+					info!("Command request identifier: {:?} already processed. Failed to acquire lock!", command_request.identifier)
+				},
 			}
 
 			Ok(())
 		}
 
 		/** Connect to a given IPFS address
-			TODO: add options and documentation */
-		fn connect_to(address: Vec<u8>, deadline: Option<Timestamp>) {
+			- Example: /ip4/127.0.0.1/tcp/4001/p2p/<Ipfs node Id> */
+		fn connect_to(command_request: &CommandRequest<T>, address: &Vec<u8>, deadline: Option<Timestamp>) {
 			match Self::ipfs_request(IpfsRequest::Connect(OpaqueMultiaddr(address.clone())), deadline) {
 				Ok(IpfsResponse::Success) => { info!("IPFS: connected to {}", str::from_utf8(&address).expect("UTF-8")) },
 				_ => { Self::failure_message(&"connect_to") },
@@ -420,8 +440,8 @@ pub mod pallet {
 		}
 
 		/** Disconnect from a given IPFS address
-		 	TODO: add options and documentation */
-		fn disconnect_from(address: Vec<u8>, deadline: Option<Timestamp>) {
+			- Example: /ip4/127.0.0.1/tcp/4001/p2p/<Ipfs node Id> */
+		fn disconnect_from(command_request: &CommandRequest<T>, address: &Vec<u8>, deadline: Option<Timestamp>) {
 			match Self::ipfs_request(IpfsRequest::Disconnect(OpaqueMultiaddr(address.clone())), deadline) {
 				Ok(IpfsResponse::Success) => { info!("IPFS: disconnected from {}", str::from_utf8(&address).expect("UTF-8")) },
 				_ => { Self::failure_message(&"disconnect_from")}
@@ -429,18 +449,18 @@ pub mod pallet {
 		}
 
 		/** Upload u8 bytes to connected IPFS nodes */
-		fn add_bytes(bytes_to_add: Vec<u8>, deadline: Option<Timestamp>) {
+		fn add_bytes(command_request: &CommandRequest<T>, bytes_to_add: &Vec<u8>, deadline: Option<Timestamp>) {
 			match Self::ipfs_request(IpfsRequest::AddBytes(bytes_to_add.clone()), deadline) {
 				Ok(IpfsResponse::AddBytes(cid)) => {
 					info!("IPFS: added data with Cid: {:?}", str::from_utf8(&cid));
-					let callback = Self::signed_callback(cid);
+					let callback = Self::signed_callback(command_request, cid.clone());
 				},
 				_ => { Self::failure_message(&"add bytes!") }
 			}
 		}
 
 		/** Output the bytes of a given IPFS cid */
-		fn cat_bytes(cid: Vec<u8>, deadline: Option<Timestamp>) {
+		fn cat_bytes(command_request: &CommandRequest<T>, cid: &Vec<u8>, deadline: Option<Timestamp>) {
 			match Self::ipfs_request(IpfsRequest::CatBytes(cid.clone()), deadline) {
 				Ok(IpfsResponse::CatBytes(bytes_received)) => {
 					if let Ok(utf8_str) = str::from_utf8(&bytes_received) {
@@ -454,7 +474,7 @@ pub mod pallet {
 		}
 
 		/** Pin an IPFS cid */
-		fn insert_pin(cid: Vec<u8>, deadline: Option<Timestamp>) {
+		fn insert_pin(command_request: &CommandRequest<T>, cid: &Vec<u8>, deadline: Option<Timestamp>) {
 			match Self::ipfs_request(IpfsRequest::InsertPin(cid.clone(), false), deadline) {
 				Ok(IpfsResponse::Success) => { info!("IPFS: pinned data wit cid {:?}", str::from_utf8(&cid.clone())); }
 				_ => { Self::failure_message(&"pin cid" ) }
@@ -462,7 +482,7 @@ pub mod pallet {
 		}
 
 		/** Remove a Pin from an IPFS cid */
-		fn remove_pin(cid: Vec<u8>, deadline: Option<Timestamp>) {
+		fn remove_pin(command_request: &CommandRequest<T>, cid: &Vec<u8>, deadline: Option<Timestamp>) {
 			match Self::ipfs_request(IpfsRequest::RemovePin(cid.clone(), false), deadline) {
 				Ok(IpfsResponse::Success) => { info!("IPFS: removed pinned cid {:?}", str::from_utf8(&cid.clone())); }
 				_ => { Self::failure_message( &"remove pin" )}
@@ -470,7 +490,7 @@ pub mod pallet {
 		}
 
 		/** Remove a block from IPFS */
-		fn remove_block(cid: Vec<u8>, deadline: Option<Timestamp>) {
+		fn remove_block(command_request: &CommandRequest<T>, cid: &Vec<u8>, deadline: Option<Timestamp>) {
 			match Self::ipfs_request(IpfsRequest::RemoveBlock(cid.clone()), deadline) {
 				Ok(IpfsResponse::Success) => { info!("IPFS: removed block {:?}", str::from_utf8(&cid.clone())); }
 				_ => { Self::failure_message(&"remove block") }
@@ -479,7 +499,7 @@ pub mod pallet {
 
 		/** Find the multiaddresses associated with a Peer ID
 			TODO: documentation for peer_id */
-		fn find_peer(peer_id: Vec<u8>, deadline: Option<Timestamp>) {
+		fn find_peer(command_request: &CommandRequest<T>, peer_id: &Vec<u8>, deadline: Option<Timestamp>) {
 			match Self::ipfs_request(IpfsRequest::FindPeer(peer_id.clone()), deadline) {
 				Ok(IpfsResponse::FindPeer(addresses)) => {
 					let peers = addresses.iter().map(|address| str::from_utf8(&address.0)).collect::<Vec<_>>();
@@ -491,7 +511,7 @@ pub mod pallet {
 		}
 
 		/** Find the providers for a given cid */
-		fn get_providers(cid: Vec<u8>, deadline: Option<Timestamp>) {
+		fn get_providers(command_request: &CommandRequest<T>, cid: &Vec<u8>, deadline: Option<Timestamp>) {
 			match Self::ipfs_request(IpfsRequest::GetProviders(cid.clone()), deadline) {
 				Ok(IpfsResponse::GetProviders(peer_ids)) => {
 					let providers = peer_ids.iter().map(|peer| str::from_utf8(peer)).collect::<Vec<_>>();
@@ -520,7 +540,7 @@ pub mod pallet {
 		}
 
 		/** callback to the on-chain validators to continue processing the CID  **/
-		fn signed_callback(cid: Vec<u8>) -> Result<(), Error<T>> {
+		fn signed_callback(command_request: &CommandRequest<T>, data: Vec<u8>) -> Result<(), Error<T>> {
 			let signer = Signer::<T, T::AuthorityId>::all_accounts();
 			if !signer.can_sign() {
 				error!("*** IPFS *** ---- No local accounts available. Consider adding one via `author_insertKey` RPC.");
@@ -530,14 +550,19 @@ pub mod pallet {
 
 			info!("attempting to sign a transaction");
 
-			let results  = signer.send_signed_transaction(|_account| { Call::ocw_callback{ cid: cid.clone() } });
+			let results  = signer.send_signed_transaction(|_account| {
+				Call::ocw_callback{
+					identifier: command_request.identifier,
+					data: data.clone()
+				}
+			});
 
 			info!("*** IPFS: result size: {:?}", results.len());
 			for (account, result) in &results {
 				info!("** reporting results **");
 
 				match result {
-					Ok(()) => { info!("callback sent: {:?}, cid: {:?}", account.public, cid.clone()); },
+					Ok(()) => { info!("callback sent: {:?}", account.public) },
 					Err(e) => { error!("Failed to submit transaction {:?}", e)}
 				}
 			}
