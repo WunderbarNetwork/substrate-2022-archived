@@ -25,8 +25,8 @@ use frame_support::{
 	dispatch::DispatchResult,
 };
 
-#[cfg(feature = "std")]
-use frame_support::serde::{ Deserialize, Serialize };
+// #[cfg(feature = "std")]
+// use frame_support::serde::{ Deserialize, Serialize };
 
 use sp_core::{
 	crypto::KeyTypeId,
@@ -122,7 +122,7 @@ pub mod pallet {
 	 	- FindPeer(Vec<u8>)
 		- GetProviders(Vec<u8>)*/
 	#[derive(PartialEq, Eq, Clone, Debug, Encode, Decode, TypeInfo)]
-	#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+	// #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 	pub enum IpfsCommand {
 		// Connection Commands
 		ConnectTo(Vec<u8>),
@@ -142,7 +142,7 @@ pub mod pallet {
 
 	/** CommandRequest is used for issuing requests to an ocw that can be connected to connections to IPFS nodes. **/
 	#[derive(Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
-	#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+	// #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 	#[scale_info(skip_type_params(T))]
 	pub struct CommandRequest<T: Config> {
 		pub identifier: [u8; 32],
@@ -211,50 +211,34 @@ pub mod pallet {
 		-	commands: Vec<CommandRequest<T>>
 	 **/
 	#[pallet::genesis_config]
-	pub struct GenesisConfig<T: Config> {
-		pub commands: Vec<CommandRequest<T>>,
+	pub struct GenesisConfig {
+		// pub commands: Vec<CommandRequest<T>>,
 	}
 
 	#[cfg(feature = "std")]
-	impl<T: Config> Default for GenesisConfig<T> {
-		fn default() -> GenesisConfig<T> {
-			GenesisConfig { commands: Vec::<CommandRequest<T>>::new() }
+	impl Default for GenesisConfig {
+		fn default() -> GenesisConfig {
+			GenesisConfig { } //commands: Vec::<CommandRequest<T>>::new() }
 		}
 	}
 
 	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+	impl<T: Config> GenesisBuild<T> for GenesisConfig {
 		fn build(&self) {
 			// TODO: Allow the configs to use strings, then convert them to the Vec<u8> collections.
-			Commands::<T>::set(Some(self.commands.clone()));
+			Commands::<T>::set(Some(Vec::<CommandRequest<T>>::new()));
 		}
 	}
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		// TODO: optimize
-		fn on_initialize(block_number: BlockNumberFor<T>) -> Weight {
-			let storage = StorageValueRef::persistent(PROCESSED_COMMANDS);
-			let value : Result<Option<Vec::<[u8; 32]>>, StorageRetrievalError> = storage.get();
-			let processed_commands: Vec::<[u8; 32]> = value.unwrap_or(Some(Vec::<[u8; 32]>::new())).unwrap();
+		// fn on_initialize(block_number: BlockNumberFor<T>) -> Weight {
+		// 	Commands::<T>::set(Some(Vec::<CommandRequest<T>>::new());
+		//
+		// 	0
+		// }
 
-			let mut remaining_commands = Vec::<CommandRequest<T>>::new();
-			let existing_commands = Commands::<T>::get();
-
-			for existing_command in existing_commands.unwrap() {
-				for processed_command in processed_commands.clone() { // depp clone?  .iter().map(|pc| pc.clone()).collect::<Vec::<[u8; 32]>>() {
-					if existing_command.identifier == processed_command {
-						info!("Found a command that has been processed, removing it!");
-					} else {
-						remaining_commands.push(existing_command.clone());
-					}
-				}
-			}
-
-			Commands::<T>::set(Some(remaining_commands));
-
-			0
-		}
 
 		/** synchronize with offchain_worker activities
 			Use the ocw lock for this
@@ -372,14 +356,22 @@ pub mod pallet {
 			info!("IPFS: #ocw_callback !!!");
 			let signer = ensure_signed(origin)?;
 
-			// find the command using the identifier
-			// Remove it from the Commands vec, remove ref from StorageValueRef
-			// Pass CommandRequest to a callback function.
-			// - Ideally the callback function can be override by another pallet that is coupled to this one allowing for custom functionality.
-			// - data can be used for callbacks IE add a cid to the signer / uploader.
-			// - Validate a connected peer has the CID, and which peer has it etc.
+			// Side effect:, swap_remove will change the ordering of the Vec!
+			// TODO: the lock still exists in the ocw storage
+			let mut callback_command :Option<CommandRequest<T>> = None;
+			Commands::<T>::mutate(|command_requests| {
+				let mut commands = command_requests.clone().unwrap();
 
-			info!("Offchain callback hit from: {:?}", signer);
+				if let Some(index) = commands.iter().position(|cmd| { cmd.identifier == identifier }) {
+					info!("Removing at index {}", index.clone());
+					callback_command = Some(commands.swap_remove(index).clone());
+				};
+
+				*command_requests = Some(commands);
+			});
+
+			Self::command_callback(&callback_command.unwrap(), data);
+
 			Ok(Self::deposit_event(Event::OcwCallback(signer)))
 		}
 	}
@@ -419,15 +411,6 @@ pub mod pallet {
 			2) Call the CommandRequest.ipfs_command initializing an ipfs request
 		 */
 		fn process_command(block_number: T::BlockNumber, command_request: CommandRequest<T>) -> Result<(), Error<T>>{
-			// TODO:  remove
-			// let storage = StorageValueRef::persistent(&command_request.identifier);
-			//
-			// let acquire_lock = storage.mutate(|command_identifier: Result<Option<T::BlockNumber>, StorageRetrievalError>| {
-			// 	match command_identifier {
-			// 		Ok(Some(block)) if block_number != block => { info!("Lock failed, lock was not in current block"); Err(()) },
-			// 		_ => { info!("Acquired lock!"); Ok(block_number) },
-			// 	}
-			// });
 			let acquire_lock = Self::acquire_command_request_lock(block_number, &command_request);
 
 			match acquire_lock {
@@ -465,7 +448,10 @@ pub mod pallet {
 						Ok(commands)
 					}
 					_ => {
-						Ok(vec![command_request.identifier])
+						let mut res = Vec::<[u8; 32]>::new();
+						res.push(command_request.identifier);
+
+						Ok(res)
 					}
 				}
 			})
@@ -498,7 +484,11 @@ pub mod pallet {
 			- Example: /ip4/127.0.0.1/tcp/4001/p2p/<Ipfs node Id> */
 		fn connect_to(command_request: &CommandRequest<T>, address: &Vec<u8>, deadline: Option<Timestamp>) {
 			match Self::ipfs_request(IpfsRequest::Connect(OpaqueMultiaddr(address.clone())), deadline) {
-				Ok(IpfsResponse::Success) => { info!("IPFS: connected to {}", str::from_utf8(&address).expect("UTF-8")) },
+				Ok(IpfsResponse::Success) => {
+					info!("IPFS: connected to {}", str::from_utf8(&address).expect("UTF-8"));
+
+					Self::signed_callback(command_request, Vec::<u8>::new());
+				},
 				_ => { Self::failure_message(&"connect_to") },
 			}
 		}
@@ -507,7 +497,11 @@ pub mod pallet {
 			- Example: /ip4/127.0.0.1/tcp/4001/p2p/<Ipfs node Id> */
 		fn disconnect_from(command_request: &CommandRequest<T>, address: &Vec<u8>, deadline: Option<Timestamp>) {
 			match Self::ipfs_request(IpfsRequest::Disconnect(OpaqueMultiaddr(address.clone())), deadline) {
-				Ok(IpfsResponse::Success) => { info!("IPFS: disconnected from {}", str::from_utf8(&address).expect("UTF-8")) },
+				Ok(IpfsResponse::Success) => {
+					info!("IPFS: disconnected from {}", str::from_utf8(&address).expect("UTF-8"));
+
+					Self::signed_callback(command_request, Vec::<u8>::new());
+				},
 				_ => { Self::failure_message(&"disconnect_from")}
 			}
 		}
@@ -517,7 +511,8 @@ pub mod pallet {
 			match Self::ipfs_request(IpfsRequest::AddBytes(bytes_to_add.clone()), deadline) {
 				Ok(IpfsResponse::AddBytes(cid)) => {
 					info!("IPFS: added data with Cid: {:?}", str::from_utf8(&cid));
-					let callback = Self::signed_callback(command_request, cid.clone());
+
+					Self::signed_callback(command_request, cid.clone());
 				},
 				_ => { Self::failure_message(&"add bytes!") }
 			}
@@ -532,6 +527,9 @@ pub mod pallet {
 					} else {
 						info!("IPFS: received bytes: {:x?}", bytes_received)
 					}
+
+					// TODO: Could do something with the output
+					Self::signed_callback(command_request, Vec::<u8>::new());
 				},
 				_ => { Self::failure_message(&"cat bytes!") },
 			}
@@ -540,7 +538,11 @@ pub mod pallet {
 		/** Pin an IPFS cid */
 		fn insert_pin(command_request: &CommandRequest<T>, cid: &Vec<u8>, deadline: Option<Timestamp>) {
 			match Self::ipfs_request(IpfsRequest::InsertPin(cid.clone(), false), deadline) {
-				Ok(IpfsResponse::Success) => { info!("IPFS: pinned data wit cid {:?}", str::from_utf8(&cid.clone())); }
+				Ok(IpfsResponse::Success) => {
+					info!("IPFS: pinned data wit cid {:?}", str::from_utf8(&cid.clone()));
+
+					Self::signed_callback(command_request, Vec::<u8>::new());
+				}
 				_ => { Self::failure_message(&"pin cid" ) }
 			}
 		}
@@ -548,7 +550,11 @@ pub mod pallet {
 		/** Remove a Pin from an IPFS cid */
 		fn remove_pin(command_request: &CommandRequest<T>, cid: &Vec<u8>, deadline: Option<Timestamp>) {
 			match Self::ipfs_request(IpfsRequest::RemovePin(cid.clone(), false), deadline) {
-				Ok(IpfsResponse::Success) => { info!("IPFS: removed pinned cid {:?}", str::from_utf8(&cid.clone())); }
+				Ok(IpfsResponse::Success) => {
+					info!("IPFS: removed pinned cid {:?}", str::from_utf8(&cid.clone()));
+
+					Self::signed_callback(command_request, Vec::<u8>::new());
+				}
 				_ => { Self::failure_message( &"remove pin" )}
 			}
 		}
@@ -556,7 +562,11 @@ pub mod pallet {
 		/** Remove a block from IPFS */
 		fn remove_block(command_request: &CommandRequest<T>, cid: &Vec<u8>, deadline: Option<Timestamp>) {
 			match Self::ipfs_request(IpfsRequest::RemoveBlock(cid.clone()), deadline) {
-				Ok(IpfsResponse::Success) => { info!("IPFS: removed block {:?}", str::from_utf8(&cid.clone())); }
+				Ok(IpfsResponse::Success) => {
+					info!("IPFS: removed block {:?}", str::from_utf8(&cid.clone()));
+
+					Self::signed_callback(command_request, Vec::<u8>::new());
+				}
 				_ => { Self::failure_message(&"remove block") }
 			}
 		}
@@ -567,7 +577,10 @@ pub mod pallet {
 			match Self::ipfs_request(IpfsRequest::FindPeer(peer_id.clone()), deadline) {
 				Ok(IpfsResponse::FindPeer(addresses)) => {
 					let peers = addresses.iter().map(|address| str::from_utf8(&address.0)).collect::<Vec<_>>();
+
 					info!("IPFS: Found peer {:?} with addresses {:?}", str::from_utf8(&peer_id), peers);
+
+					Self::signed_callback(command_request, Vec::<u8>::new());
 				},
 				_ => { Self::failure_message(&"find DHT addresses")}
 
@@ -579,7 +592,10 @@ pub mod pallet {
 			match Self::ipfs_request(IpfsRequest::GetProviders(cid.clone()), deadline) {
 				Ok(IpfsResponse::GetProviders(peer_ids)) => {
 					let providers = peer_ids.iter().map(|peer| str::from_utf8(peer)).collect::<Vec<_>>();
+
 					info!("IPFS: found the following providers of {:?}: {:?}", str::from_utf8(&cid.clone()), providers);
+
+					Self::signed_callback(command_request, Vec::<u8>::new());
 				},
 				_ => { Self::failure_message(&"get DHT providers")} }
 		}
@@ -629,6 +645,26 @@ pub mod pallet {
 					Ok(()) => { info!("callback sent: {:?}", account.public) },
 					Err(e) => { error!("Failed to submit transaction {:?}", e)}
 				}
+			}
+
+			Ok(())
+		}
+
+		// - Ideally the callback function can be override by another pallet that is coupled to this one allowing for custom functionality.
+		// - data can be used for callbacks IE add a cid to the signer / uploader.
+		// - Validate a connected peer has the CID, and which peer has it etc.
+		// TODO: Result
+		fn command_callback(command_request: &CommandRequest<T>, data: Vec<u8>) -> Result<(), ()>{
+			match command_request.ipfs_command {
+				IpfsCommand::ConnectTo(ref address) 	   	=> {  },
+				IpfsCommand::DisconnectFrom(ref address) 	=> {  },
+				IpfsCommand::AddBytes(ref bytes_to_add)  	=> {  },
+				IpfsCommand::CatBytes(ref cid)			=> {  },
+				IpfsCommand::InsertPin(ref cid) 			=> {  },
+				IpfsCommand::RemovePin(ref cid) 			=> {  },
+				IpfsCommand::RemoveBlock(ref cid) 		=> {  },
+				IpfsCommand::FindPeer(ref peer_id) 		=> {  },
+				IpfsCommand::GetProviders(ref cid) 		=> {  },
 			}
 
 			Ok(())
