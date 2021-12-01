@@ -1010,6 +1010,7 @@ pub mod key_types {
 
 	/// A key type ID useful for IPFS.
 	pub const IPFS: KeyTypeId = KeyTypeId(*b"ipfs");
+	pub const OCW_EXAMPLE: KeyTypeId = KeyTypeId(*b"btc!");
 }
 
 #[cfg(test)]

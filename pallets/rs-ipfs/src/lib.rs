@@ -28,7 +28,10 @@ use frame_support::{
 #[cfg(feature = "std")]
 use frame_support::serde::{ Deserialize, Serialize };
 
-use sp_core::offchain::{ Duration, IpfsRequest, IpfsResponse, OpaqueMultiaddr, Timestamp};
+use sp_core::{
+	crypto::KeyTypeId,
+	offchain::{ Duration, IpfsRequest, IpfsResponse, OpaqueMultiaddr, Timestamp},
+};
 use log::{ error, info };
 use sp_std::str;
 use sp_std::vec::Vec;
@@ -77,8 +80,11 @@ pub mod pallet {
 	use super::*;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
+	use sp_core::crypto::KeyTypeId;
 
+	pub const KEY_TYPE: KeyTypeId = sp_core::crypto::key_types::IPFS;
 	const TIMEOUT_DURATION: u64 = 1_000;
+	const PROCESSED_COMMANDS: &[u8; 24] = b"ipfs::processed_commands";
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
@@ -226,11 +232,29 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		// fn on_initialize(_block_number: BlockNumberFor<T>) -> Weight {
-		// 	Commands::<T>::set(Some(Vec::<CommandRequest<T>>::new()));
-		//
-		// 	0
-		// }
+		// TODO: optimize
+		fn on_initialize(block_number: BlockNumberFor<T>) -> Weight {
+			let storage = StorageValueRef::persistent(PROCESSED_COMMANDS);
+			let value : Result<Option<Vec::<[u8; 32]>>, StorageRetrievalError> = storage.get();
+			let processed_commands: Vec::<[u8; 32]> = value.unwrap_or(Some(Vec::<[u8; 32]>::new())).unwrap();
+
+			let mut remaining_commands = Vec::<CommandRequest<T>>::new();
+			let existing_commands = Commands::<T>::get();
+
+			for existing_command in existing_commands.unwrap() {
+				for processed_command in processed_commands.clone() { // depp clone?  .iter().map(|pc| pc.clone()).collect::<Vec::<[u8; 32]>>() {
+					if existing_command.identifier == processed_command {
+						info!("Found a command that has been processed, removing it!");
+					} else {
+						remaining_commands.push(existing_command.clone());
+					}
+				}
+			}
+
+			Commands::<T>::set(Some(remaining_commands));
+
+			0
+		}
 
 		/** synchronize with offchain_worker activities
 			Use the ocw lock for this
@@ -239,8 +263,6 @@ pub mod pallet {
 			if let Err(_err) = Self::print_metadata(&"*** IPFS off-chain worker started with ***") { error!("IPFS: Error occurred during `print_metadata`"); }
 
 			if let Err(_err) = Self::process_command_requests(block_number) { error!("IPFS: command request"); }
-
-			if let Err(_err) = Self::print_metadata(&"*** IPFS off-chain worker finished with ***") { error!("IPFS: Error occurred during `print_metadata`"); }
 		}
 	}
 
@@ -347,6 +369,7 @@ pub mod pallet {
 
 		#[pallet::weight(0)]
 		pub fn ocw_callback(origin: OriginFor<T>, identifier: [u8; 32], data: Vec<u8>) -> DispatchResult {
+			info!("IPFS: #ocw_callback !!!");
 			let signer = ensure_signed(origin)?;
 
 			// find the command using the identifier
@@ -393,21 +416,22 @@ pub mod pallet {
 
 		/** Process each IPFS `command_request`
 			1) lock the request for asynchronous processing
-			2) Call the CommandRequest.ipfs_command initializing the request
+			2) Call the CommandRequest.ipfs_command initializing an ipfs request
 		 */
 		fn process_command(block_number: T::BlockNumber, command_request: CommandRequest<T>) -> Result<(), Error<T>>{
-			// TODO: Lock using the command_request_id
-			let storage = StorageValueRef::persistent(&command_request.identifier);
-
-			let acquire_lock = storage.mutate(|command_identifier: Result<Option<T::BlockNumber>, StorageRetrievalError>| {
-				match command_identifier {
-					Ok(Some(block)) if block_number != block => { info!("Lock failed, lock was not in current block"); Err(()) },
-					_ => { info!("Acquired lock!"); Ok(block_number) },
-				}
-			});
+			// TODO:  remove
+			// let storage = StorageValueRef::persistent(&command_request.identifier);
+			//
+			// let acquire_lock = storage.mutate(|command_identifier: Result<Option<T::BlockNumber>, StorageRetrievalError>| {
+			// 	match command_identifier {
+			// 		Ok(Some(block)) if block_number != block => { info!("Lock failed, lock was not in current block"); Err(()) },
+			// 		_ => { info!("Acquired lock!"); Ok(block_number) },
+			// 	}
+			// });
+			let acquire_lock = Self::acquire_command_request_lock(block_number, &command_request);
 
 			match acquire_lock {
-				Ok(block) => {
+				Ok(_block) => {
 					let deadline = Self::deadline();
 
 					match command_request.ipfs_command {
@@ -421,13 +445,53 @@ pub mod pallet {
 						IpfsCommand::FindPeer(ref peer_id) 		=> { Self::find_peer(&command_request, peer_id, deadline) },
 						IpfsCommand::GetProviders(ref cid) 		=> { Self::get_providers(&command_request, cid, deadline) },
 					}
+
+					Self::processed_commands(&command_request);
 				},
-				_ => {
-					info!("Command request identifier: {:?} already processed. Failed to acquire lock!", command_request.identifier)
-				},
+				_ => {},
 			}
 
 			Ok(())
+		}
+
+		fn processed_commands(command_request: &CommandRequest<T>) -> Result<Vec<[u8; 32]>, MutateStorageError<Vec<[u8; 32]>, ()>>{
+			let processed_commands = StorageValueRef::persistent(PROCESSED_COMMANDS);
+
+			processed_commands.mutate(|processed_commands: Result<Option<Vec<[u8; 32]>>, StorageRetrievalError>| {
+				match processed_commands {
+					Ok(Some(mut commands)) => {
+						commands.push(command_request.identifier);
+
+						Ok(commands)
+					}
+					_ => {
+						Ok(vec![command_request.identifier])
+					}
+				}
+			})
+		}
+
+		/// Using the CommandRequest<T>.identifier we can attempt to create a lock via StorageValueRef,
+		/// leaving behind a block number of when the lock was formed.
+		fn acquire_command_request_lock(block_number: T::BlockNumber, command_request: &CommandRequest<T>) -> Result<T::BlockNumber, MutateStorageError<T::BlockNumber, ()>> {
+			let storage = StorageValueRef::persistent(&command_request.identifier);
+
+			storage.mutate(|command_identifier: Result<Option<T::BlockNumber>, StorageRetrievalError>| {
+				match command_identifier {
+					Ok(Some(block))  => {
+						if block_number != block {
+							info!("Lock failed, lock was not in current block");
+							Err(()) // TODO: add error
+						} else {
+							Ok(block)
+						}
+					},
+					_ => {
+						info!("IPFS: Acquired lock!");
+						Ok(block_number)
+					},
+				}
+			})
 		}
 
 		/** Connect to a given IPFS address
