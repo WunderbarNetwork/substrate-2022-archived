@@ -1,4 +1,4 @@
-#![feature(option_result_contains)]
+// #![feature(option_result_contains)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 /// Edit this file to define custom logic or remove it if it is not needed.
@@ -7,29 +7,25 @@
 
 use codec::{ Decode, Encode };
 use frame_system::{
-	self as system,
-	offchain::{ AppCrypto, CreateSignedTransaction, SendSignedTransaction, SignedPayload, Signer, SigningTypes, SubmitTransaction },
+	offchain::{ AppCrypto, CreateSignedTransaction, SendSignedTransaction, Signer},
 };
 use sp_runtime::{
 	offchain::{
 		ipfs,
 		storage::{MutateStorageError, StorageRetrievalError, StorageValueRef},
 	},
-	transaction_validity::{InvalidTransaction, TransactionValidity, ValidTransaction},
 	RuntimeDebug
 };
 
 use frame_support::{
-	sp_runtime::traits::Hash,
 	traits::Randomness,
 	dispatch::DispatchResult,
 };
 
-// #[cfg(feature = "std")]
-// use frame_support::serde::{ Deserialize, Serialize };
+#[cfg(feature = "std")]
+use frame_support::serde::{ Deserialize, Serialize };
 
 use sp_core::{
-	crypto::KeyTypeId,
 	offchain::{ Duration, IpfsRequest, IpfsResponse, OpaqueMultiaddr, Timestamp},
 };
 use log::{ error, info };
@@ -48,29 +44,36 @@ mod benchmarking;
 pub mod crypto {
 	use sp_core::{
 		sr25519::Signature as Sr25519Signature,
-		crypto::key_types,
 	};
 	use sp_runtime::{
 		app_crypto::{app_crypto, sr25519},
 		traits::Verify,
 		MultiSignature, MultiSigner
 	};
-	app_crypto!(sr25519, key_types::IPFS);
+	app_crypto!(sr25519, sp_core::crypto::key_types::IPFS);
 
 	pub struct TestAuthId;
 
 	impl frame_system::offchain::AppCrypto<MultiSigner, MultiSignature> for TestAuthId {
 		type RuntimeAppPublic = Public;
-		type GenericSignature = sp_core::sr25519::Signature;
 		type GenericPublic = sp_core::sr25519::Public;
+		type GenericSignature = sp_core::sr25519::Signature;
 	}
 
 	// Implemented for mock runtime in tests
 	impl frame_system::offchain::AppCrypto<<Sr25519Signature as Verify>::Signer, Sr25519Signature> for TestAuthId {
 		type RuntimeAppPublic = Public;
-		type GenericSignature = sp_core::sr25519::Signature;
 		type GenericPublic = sp_core::sr25519::Public;
+		type GenericSignature = sp_core::sr25519::Signature;
 	}
+}
+
+pub fn generate_id<T: Config>() -> [u8; 32] {
+	let payload = (
+		T::IpfsRandomness::random(&b"ipfs-request-id"[..]).0,
+		<frame_system::Pallet<T>>::block_number(),
+	);
+	payload.using_encoded(sp_io::hashing::blake2_256)
 }
 
 pub use pallet::*;
@@ -81,6 +84,7 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 	use sp_core::crypto::KeyTypeId;
+	use generate_id;
 
 	pub const KEY_TYPE: KeyTypeId = sp_core::crypto::key_types::IPFS;
 	const TIMEOUT_DURATION: u64 = 1_000;
@@ -122,7 +126,7 @@ pub mod pallet {
 	 	- FindPeer(Vec<u8>)
 		- GetProviders(Vec<u8>)*/
 	#[derive(PartialEq, Eq, Clone, Debug, Encode, Decode, TypeInfo)]
-	// #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+	#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 	pub enum IpfsCommand {
 		// Connection Commands
 		ConnectTo(Vec<u8>),
@@ -142,8 +146,8 @@ pub mod pallet {
 
 	/** CommandRequest is used for issuing requests to an ocw that can be connected to connections to IPFS nodes. **/
 	#[derive(Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
-	// #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 	#[scale_info(skip_type_params(T))]
+	#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 	pub struct CommandRequest<T: Config> {
 		pub identifier: [u8; 32],
 		pub requester: T::AccountId,
@@ -156,7 +160,7 @@ pub mod pallet {
 	/** Store a list of Commands for the ocw to process */
 	#[pallet::storage]
 	#[pallet::getter(fn commands)]
-	pub(super) type Commands<T: Config> = StorageValue<_, Vec<CommandRequest<T>>>;
+	pub type Commands<T: Config> = StorageValue<_, Vec<CommandRequest<T>>>;
 
 	/** Pallets use events to inform users when important changes are made.
 	- ConnectionRequested(T::AccountId),
@@ -190,6 +194,7 @@ pub mod pallet {
 	- RequestFailed,
 	- NoneValue,
 	- StorageOverflow,
+	- OffchainSignedTxError,
 	*/
 	#[pallet::error]
 	pub enum Error<T> {
@@ -211,19 +216,19 @@ pub mod pallet {
 		-	commands: Vec<CommandRequest<T>>
 	 **/
 	#[pallet::genesis_config]
-	pub struct GenesisConfig {
-		// pub commands: Vec<CommandRequest<T>>,
+	pub struct GenesisConfig<T: Config> {
+		pub commands: Vec<CommandRequest<T>>,
 	}
 
 	#[cfg(feature = "std")]
-	impl Default for GenesisConfig {
-		fn default() -> GenesisConfig {
-			GenesisConfig { } //commands: Vec::<CommandRequest<T>>::new() }
+	impl<T: Config> Default for GenesisConfig<T> {
+		fn default() -> GenesisConfig<T> {
+			GenesisConfig { commands: Vec::<CommandRequest<T>>::new() }
 		}
 	}
 
 	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig {
+	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
 		fn build(&self) {
 			// TODO: Allow the configs to use strings, then convert them to the Vec<u8> collections.
 			Commands::<T>::set(Some(Vec::<CommandRequest<T>>::new()));
@@ -232,17 +237,6 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		// TODO: optimize
-		// fn on_initialize(block_number: BlockNumberFor<T>) -> Weight {
-		// 	Commands::<T>::set(Some(Vec::<CommandRequest<T>>::new());
-		//
-		// 	0
-		// }
-
-
-		/** synchronize with offchain_worker activities
-			Use the ocw lock for this
-			offchain_worker configuration **/
 		fn offchain_worker(block_number: T::BlockNumber) {
 			if let Err(_err) = Self::print_metadata(&"*** IPFS off-chain worker started with ***") { error!("IPFS: Error occurred during `print_metadata`"); }
 
@@ -262,7 +256,7 @@ pub mod pallet {
 		pub fn ipfs_connect(origin: OriginFor<T>, address: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
 
-			let ipfs_command = CommandRequest::<T> { identifier: Self::generate_id(), requester: requester.clone(), ipfs_command: IpfsCommand::ConnectTo(address) };
+			let ipfs_command = CommandRequest::<T> { identifier: generate_id::<T>(), requester: requester.clone(), ipfs_command: IpfsCommand::ConnectTo(address) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::ConnectionRequested(requester)))
@@ -274,7 +268,7 @@ pub mod pallet {
 		#[pallet::weight(500_000)]
 		pub fn ipfs_disconnect(origin: OriginFor<T>, address: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::<T> { identifier: Self::generate_id(), requester: requester.clone(), ipfs_command: IpfsCommand::DisconnectFrom(address) };
+			let ipfs_command = CommandRequest::<T> { identifier: generate_id::<T>(), requester: requester.clone(), ipfs_command: IpfsCommand::DisconnectFrom(address) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::DisconnectedRequested(requester)))
@@ -284,7 +278,7 @@ pub mod pallet {
 		#[pallet::weight(200_000)]
 		pub fn ipfs_add_bytes(origin: OriginFor<T>, received_bytes: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::<T> { identifier: Self::generate_id(), requester: requester.clone(), ipfs_command: IpfsCommand::AddBytes(received_bytes) };
+			let ipfs_command = CommandRequest::<T> { identifier: generate_id::<T>(), requester: requester.clone(), ipfs_command: IpfsCommand::AddBytes(received_bytes) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::QueuedDataToAdd(requester)))
@@ -295,7 +289,7 @@ pub mod pallet {
 		#[pallet::weight(100_000)]
 		pub fn ipfs_cat_bytes(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::<T> { identifier: Self::generate_id(), requester: requester.clone(), ipfs_command: IpfsCommand::CatBytes(cid) };
+			let ipfs_command = CommandRequest::<T> { identifier: generate_id::<T>(), requester: requester.clone(), ipfs_command: IpfsCommand::CatBytes(cid) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::QueuedDataToCat(requester)))
@@ -305,7 +299,7 @@ pub mod pallet {
 		#[pallet::weight(300_000)]
 		pub fn ipfs_remove_block(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::<T> { identifier: Self::generate_id(), requester: requester.clone(), ipfs_command: IpfsCommand::RemoveBlock(cid) };
+			let ipfs_command = CommandRequest::<T> { identifier: generate_id::<T>(), requester: requester.clone(), ipfs_command: IpfsCommand::RemoveBlock(cid) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::QueuedDataToRemove(requester)))
@@ -315,7 +309,7 @@ pub mod pallet {
 		#[pallet::weight(100_000)]
 		pub fn ipfs_insert_pin(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::<T> { identifier: Self::generate_id(), requester: requester.clone(), ipfs_command: IpfsCommand::InsertPin(cid) };
+			let ipfs_command = CommandRequest::<T> { identifier: generate_id::<T>(), requester: requester.clone(), ipfs_command: IpfsCommand::InsertPin(cid) };
 
 			Commands::<T>::append( ipfs_command);
 			Ok(Self::deposit_event(Event::QueuedDataToPin(requester)))
@@ -325,7 +319,7 @@ pub mod pallet {
 		#[pallet::weight(100_000)]
 		pub fn ipfs_remove_pin(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::<T> { identifier: Self::generate_id(), requester: requester.clone(), ipfs_command: IpfsCommand::RemovePin(cid) };
+			let ipfs_command = CommandRequest::<T> { identifier: generate_id::<T>(), requester: requester.clone(), ipfs_command: IpfsCommand::RemovePin(cid) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::QueuedDataToUnpin(requester)))
@@ -335,7 +329,7 @@ pub mod pallet {
 		#[pallet::weight(100_000)]
 		pub fn ipfs_dht_find_peer(origin: OriginFor<T>, peer_id: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::<T> { identifier: Self::generate_id(), requester: requester.clone(), ipfs_command: IpfsCommand::FindPeer(peer_id) };
+			let ipfs_command = CommandRequest::<T> { identifier: generate_id::<T>(), requester: requester.clone(), ipfs_command: IpfsCommand::FindPeer(peer_id) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::FindPeerIssued(requester)))
@@ -345,7 +339,7 @@ pub mod pallet {
 		#[pallet::weight(100_000)]
 		pub fn ipfs_dht_find_providers(origin: OriginFor<T>, cid: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
-			let ipfs_command = CommandRequest::<T> { identifier: Self::generate_id(), requester: requester.clone(), ipfs_command: IpfsCommand::GetProviders(cid) };
+			let ipfs_command = CommandRequest::<T> { identifier: generate_id::<T>(), requester: requester.clone(), ipfs_command: IpfsCommand::GetProviders(cid) };
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::FindProvidersIssued(requester)))
@@ -437,25 +431,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		fn processed_commands(command_request: &CommandRequest<T>) -> Result<Vec<[u8; 32]>, MutateStorageError<Vec<[u8; 32]>, ()>>{
-			let processed_commands = StorageValueRef::persistent(PROCESSED_COMMANDS);
-
-			processed_commands.mutate(|processed_commands: Result<Option<Vec<[u8; 32]>>, StorageRetrievalError>| {
-				match processed_commands {
-					Ok(Some(mut commands)) => {
-						commands.push(command_request.identifier);
-
-						Ok(commands)
-					}
-					_ => {
-						let mut res = Vec::<[u8; 32]>::new();
-						res.push(command_request.identifier);
-
-						Ok(res)
-					}
-				}
-			})
-		}
 
 		/// Using the CommandRequest<T>.identifier we can attempt to create a lock via StorageValueRef,
 		/// leaving behind a block number of when the lock was formed.
@@ -479,6 +454,29 @@ pub mod pallet {
 				}
 			})
 		}
+
+		/** Store a list of command identifiers to remove the lock in a following block */
+		fn processed_commands(command_request: &CommandRequest<T>) -> Result<Vec<[u8; 32]>, MutateStorageError<Vec<[u8; 32]>, ()>>{
+			let processed_commands = StorageValueRef::persistent(PROCESSED_COMMANDS);
+
+			processed_commands.mutate(|processed_commands: Result<Option<Vec<[u8; 32]>>, StorageRetrievalError>| {
+				match processed_commands {
+					Ok(Some(mut commands)) => {
+						commands.push(command_request.identifier);
+
+						Ok(commands)
+					}
+					_ => {
+						let mut res = Vec::<[u8; 32]>::new();
+						res.push(command_request.identifier);
+
+						Ok(res)
+					}
+				}
+			})
+		}
+
+		// TODO: Raise errors for commands.
 
 		/** Connect to a given IPFS address
 			- Example: /ip4/127.0.0.1/tcp/4001/p2p/<Ipfs node Id> */
@@ -670,13 +668,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		fn generate_id() -> [u8; 32] {
-			let payload = (
-					T::IpfsRandomness::random(&b"ipfs-request-id"[..]).0,
-					<frame_system::Pallet<T>>::block_number(),
-				);
-			payload.using_encoded(sp_io::hashing::blake2_256)
-		}
 
 		fn deadline() -> Option<Timestamp> {
 			Some(sp_io::offchain::timestamp().add(Duration::from_millis(TIMEOUT_DURATION)))
