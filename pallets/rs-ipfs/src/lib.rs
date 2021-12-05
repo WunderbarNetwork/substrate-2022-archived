@@ -31,6 +31,7 @@ use sp_core::{
 use log::{ error, info };
 use sp_std::str;
 use sp_std::vec::Vec;
+use core::{convert::TryInto};
 
 #[cfg(test)]
 mod mock;
@@ -83,10 +84,10 @@ pub fn generate_id<T: Config>() -> [u8; 32] {
 	1) lock the request for asynchronous processing
 	2) Call each command in CommandRequest.ipfs_commands
 		- Make sure each command is successfully before attempting the next
-		-
  */
 pub fn process_command<T: Config>(block_number: T::BlockNumber, command_request: CommandRequest<T>, persistence_key: &[u8; 24]) -> Result<Vec<IpfsResponse>, Error<T>>{
 
+	// TODO: make the lock optional: Not all requests may need a lock
 	let acquire_lock = acquire_command_request_lock::<T>(block_number, &command_request);
 
 	match acquire_lock {
@@ -230,7 +231,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use sp_core::crypto::KeyTypeId;
 	use {
-		generate_id, ipfs_request, process_command
+		generate_id, ipfs_request, process_command,
 	};
 
 	pub const KEY_TYPE: KeyTypeId = sp_core::crypto::key_types::IPFS;
@@ -309,16 +310,42 @@ pub mod pallet {
 	pub type Commands<T: Config> = StorageValue<_, Vec<CommandRequest<T>>>;
 
 	/** Pallets use events to inform users when important changes are made.
-	- ConnectionRequested(T::AccountId),
-	- DisconnectedRequested(T::AccountId),
-	- QueuedDataToAdd(T::AccountId),
-	- QueuedDataToCat(T::AccountId),
-	- QueuedDataToPin(T::AccountId),
-	- QueuedDataToRemove(T::AccountId),
-	- QueuedDataToUnpin(T::AccountId),
-	- FindPeerIssued(T::AccountId),
-	- FindProvidersIssued(T::AccountId),
-	https://docs.substrate.io/v3/runtime/events-and-errors*/
+
+		Pre offchain worker
+		- ConnectionRequested(T::AccountId)
+		- DisconnectedRequested(T::AccountId)
+		- QueuedDataToAdd(T::AccountId)
+		- QueuedDataToCat(T::AccountId)
+		- QueuedDataToPin(T::AccountId)
+		- QueuedDataToRemove(T::AccountId)
+		- QueuedDataToUnpin(T::AccountId)
+		- FindPeerIssued(T::AccountId)
+		- FindProvidersIssued(T::AccountId)
+		- OcwCallback(T::AccountId)
+
+		Post offchain worker
+		Requester, IpfsConnectionAddress
+	    - ConnectedTo(T::AccountId, Vec<u8>),
+		Requester, IpfsDisconnectionAddress
+		- DisconnectedFrom(T::AccountId, Vec<u8>),
+
+		Requester, Cid
+		- AddedCid(T::AccountId, Vec<u8>),
+		Requester, Cid, Bytes
+		- CatBytes(T::AccountId, Vec<u8>, Vec<u8>),
+
+		Requester, Cid
+		- InsertedPin(T::AccountId, Vec<u8>),
+		Requester, Cid
+		- RemovedPin(T::AccountId, Vec<u8>),
+		Requester, Cid
+		- RemovedBlock(T::AccountId, Vec<u8>),
+
+		Requester, ListOfPeers
+		- FoundPeers(T::AccountId, Vec<u8>),
+		Requester, Cid, Providers
+		- CidProviders(T::AccountId, Vec<u8>, Vec<u8>),
+	 */
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -332,6 +359,28 @@ pub mod pallet {
 		FindPeerIssued(T::AccountId),
 		FindProvidersIssued(T::AccountId),
 		OcwCallback(T::AccountId),
+
+		// Requester, IpfsConnectionAddress
+		ConnectedTo(T::AccountId, Vec<u8>),
+		// Requester, IpfsDisconnectionAddress
+		DisconnectedFrom(T::AccountId, Vec<u8>),
+
+		// Requester, Cid
+		AddedCid(T::AccountId, Vec<u8>),
+		// Requester, Cid, Bytes
+		CatBytes(T::AccountId, Vec<u8>, Vec<u8>),
+
+		// Requester, Cid
+		InsertedPin(T::AccountId, Vec<u8>),
+		// Requester, Cid
+		RemovedPin(T::AccountId, Vec<u8>),
+		// Requester, Cid
+		RemovedBlock(T::AccountId, Vec<u8>),
+
+		// Requester, ListOfPeers
+		FoundPeers(T::AccountId, Vec<u8>),
+		// Requester, Cid, Providers
+		CidProviders(T::AccountId, Vec<u8>, Vec<u8>),
 	}
 
 	/** Errors inform users that something went wrong.
@@ -538,9 +587,9 @@ pub mod pallet {
 				*command_requests = Some(commands);
 			});
 
+			Self::deposit_event(Event::OcwCallback(signer));
 			Self::command_callback(&callback_command.unwrap(), data);
-
-			Ok(Self::deposit_event(Event::OcwCallback(signer)))
+			Ok(())
 		}
 	}
 
@@ -557,12 +606,67 @@ pub mod pallet {
 
 			for command_request in commands {
 
-				let result= process_command::<T>(block_number, command_request,PROCESSED_COMMANDS);
+				match process_command::<T>(block_number, command_request.clone(), PROCESSED_COMMANDS) {
+					Ok(responses) => {
+						let mut callback_data = Vec::<u8>::new();
+
+						// TODO: Return a complete data response for each of the processed commands.
+						//  - Using the minimum number of bytes.
+						// will only return one data response.
+						for response in responses {
+							match response {
+								IpfsResponse::CatBytes(bytes_received) => { callback_data = bytes_received }
+								IpfsResponse::AddBytes(cid) | IpfsResponse::RemoveBlock(cid) => { callback_data = cid }
+
+								IpfsResponse::GetClosestPeers(peer_ids) |
+								IpfsResponse::GetProviders(peer_ids) => { callback_data = Self::multi_response_to_bytes(peer_ids) }
+
+								IpfsResponse::FindPeer(addresses) |
+								IpfsResponse::LocalAddrs(addresses) |
+								IpfsResponse::Peers(addresses) => {
+									callback_data = Self::multi_response_to_bytes(addresses.iter().map(|addr| addr.0.clone() ).collect())
+								}
+
+								IpfsResponse::LocalRefs(refs)	=> { callback_data = Self::multi_response_to_bytes(refs) }
+								IpfsResponse::Addrs(_) => {}
+								IpfsResponse::BitswapStats { .. } => {}
+								IpfsResponse::Identity(_, _) => {}
+								IpfsResponse::Success => {}
+							}
+						}
+
+						Self::signed_callback(&command_request, callback_data);
+					}
+					Err(e) => {
+						match e {
+							Error::<T>::RequestFailed => { error!("IPFS: failed to perform a request") },
+							_ => {}
+						}
+					}
+				}
 			}
 
 			Ok(())
 		}
 
+		fn multi_response_to_bytes(response: Vec<Vec<u8>>) -> Vec<u8> {
+			let mut bytes = Vec::<u8>::new();
+
+			for res in response {
+				match str::from_utf8(&res) {
+					Ok(str) => {
+						if bytes.len() == 0 {
+							bytes = Vec::from(str.as_bytes());
+						} else {
+							bytes = [bytes, Vec::from(str.as_bytes())].join(", ".as_bytes());
+						}
+					},
+					_ => {}
+				}
+			}
+
+			bytes
+		}
 
 		/** Output the current state of IPFS worker */
 		fn print_metadata(message: &str) -> Result<(), Error<T>> {
@@ -572,10 +676,10 @@ pub mod pallet {
 				Vec::new()
 			};
 
-			let peers_count= peers.len();
+			let peer_count = peers.len();
 
 			info!("{}", message);
-			info!("IPFS: Is currently connected to {} peers", peers_count);
+			info!("IPFS: Is currently connected to {} peers", peer_count);
 			info!("IPFS: CommandRequest size: {}", Commands::<T>::decode_len().unwrap_or(0));
 
 			Ok(())
@@ -583,6 +687,7 @@ pub mod pallet {
 
 		/** callback to the on-chain validators to continue processing the CID  **/
 		fn signed_callback(command_request: &CommandRequest<T>, data: Vec<u8>) -> Result<(), Error<T>> {
+			// TODO: Dynamic signers so that its not only the validator who can sign the request.
 			let signer = Signer::<T, T::AuthorityId>::all_accounts();
 			if !signer.can_sign() {
 				error!("*** IPFS *** ---- No local accounts available. Consider adding one via `author_insertKey` RPC.");
@@ -602,7 +707,7 @@ pub mod pallet {
 					Err(e) => { error!("Failed to submit transaction {:?}", e)}
 				}
 			}
-
+			// TODO: return a better Result
 			Ok(())
 		}
 
@@ -611,7 +716,45 @@ pub mod pallet {
 		// - Validate a connected peer has the CID, and which peer has it etc.
 		// TODO: Result
 		fn command_callback(command_request: &CommandRequest<T>, data: Vec<u8>) -> Result<(), ()>{
-			// TODO:
+			if let Ok(utf8_str) = str::from_utf8(&*data) {
+				info!("Received string: {:?}", utf8_str);
+			} else {
+				info!("Received data: {:?}", data);
+			}
+
+			for command in command_request.clone().ipfs_commands {
+				match command {
+					IpfsCommand::ConnectTo(address) => {
+						Self::deposit_event(Event::ConnectedTo(command_request.clone().requester, address))
+					}
+					IpfsCommand::DisconnectFrom(address) => {
+						Self::deposit_event(Event::DisconnectedFrom(command_request.clone().requester, address))
+					}
+					IpfsCommand::AddBytes(_) => {
+						Self::deposit_event(Event::AddedCid(command_request.clone().requester, data.clone()))
+					}
+					IpfsCommand::CatBytes(cid) => {
+						Self::deposit_event(Event::CatBytes(command_request.clone().requester, cid, data.clone()))
+					}
+					IpfsCommand::InsertPin(cid) => {
+						Self::deposit_event(Event::InsertedPin(command_request.clone().requester, cid))
+					}
+					IpfsCommand::RemoveBlock(cid) => {
+						Self::deposit_event(Event::RemovedBlock(command_request.clone().requester, cid))
+					}
+					IpfsCommand::RemovePin(cid) => {
+						Self::deposit_event(Event::RemovedPin(command_request.clone().requester, cid))
+					}
+					IpfsCommand::FindPeer(_) => {
+						Self::deposit_event(Event::FoundPeers(command_request.clone().requester, data.clone()))
+					}
+					IpfsCommand::GetProviders(cid) => {
+						Self::deposit_event(Event::CidProviders(command_request.clone().requester, cid, data.clone()))
+					}
+				}
+			}
+
+			// TODO: return a better Result
 			Ok(())
 		}
 

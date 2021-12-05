@@ -8,7 +8,7 @@
 //! The reason for this design is driven by the fact that IPFS requests should continue running
 //! in the background even if the runtime isn't actively calling any function.
 //!
-//! Copy from:
+//! All credit goes to:
 //! https://github.com/rs-ipfs/substrate/blob/2f565db044133cacfdfc166ca9b96594644e34e9/client/offchain/src/api/ipfs.rs
 
 use crate::api::timestamp;
