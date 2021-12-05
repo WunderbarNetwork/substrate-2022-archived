@@ -88,7 +88,6 @@ pub use sp_runtime::BuildStorage;
 // Import pallets
 pub use pallet_template;
 pub use pallet_rs_ipfs;
-pub use pallet_example_offchain_worker;
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub mod impls;
@@ -1268,15 +1267,6 @@ parameter_types! {
 	pub const UnsignedPriority: TransactionPriority = 3;
 }
 
-impl pallet_example_offchain_worker::Config for Runtime {
-	type AuthorityId = pallet_example_offchain_worker::crypto::TestAuthId;
-	type Call = Call;
-	type Event = Event;
-	type GracePeriod = GracePeriod;
-	type UnsignedInterval = UnsignedInterval;
-	type UnsignedPriority = UnsignedPriority;
-}
-
 construct_runtime!(
 	pub enum Runtime where
 		Block = Block,
@@ -1326,7 +1316,6 @@ construct_runtime!(
 		BagsList: pallet_bags_list,
 		Template: pallet_template,
 		RsIPFS: pallet_rs_ipfs,
-		Ocw: pallet_example_offchain_worker,
 	}
 );
 
