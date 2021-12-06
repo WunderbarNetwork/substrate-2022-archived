@@ -4868,6 +4868,7 @@ dependencies = [
  "pallet-identity",
  "pallet-im-online",
  "pallet-indices",
+ "pallet-ipfs-core",
  "pallet-lottery",
  "pallet-membership",
  "pallet-mmr",
@@ -5752,6 +5753,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-ipfs-core"
+version = "4.0.0-dev"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log 0.4.14",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-lottery"
 version = "4.0.0-dev"
 dependencies = [
@@ -5981,6 +5999,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "log 0.4.14",
+ "pallet-ipfs-core",
  "parity-scale-codec",
  "scale-info",
  "serde",

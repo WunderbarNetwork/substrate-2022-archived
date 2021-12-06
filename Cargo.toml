@@ -138,6 +138,7 @@ members = [
 	"frame/bags-list/fuzzer",
 	"pallets/template",
 	"pallets/rs-ipfs",
+	"pallets/ipfs-core",
 	"primitives/api",
 	"primitives/api/proc-macro",
 	"primitives/api/test",

@@ -1,5 +1,5 @@
 [package]
-name = 'pallet-rs-ipfs'
+name = 'pallet-ipfs-core'
 version = "4.0.0-dev"
 description = "FRAME pallet template for defining custom runtime logic."
 authors = ['Dan Henton <https://github.com/danhenton>']
@@ -25,8 +25,6 @@ sp-std = { default-features = false, version = "4.0.0-dev", path = "../../primit
 sp-runtime = { default-features = false, version = "4.0.0-dev", path = "../../primitives/runtime" }
 log = { default-features = false, version = "0.4" }
 
-pallet-ipfs-core = { default-features = false, version = "4.0.0-dev", path = "../ipfs-core" }
-
 [features]
 default = ['std']
 std = [
@@ -38,7 +36,6 @@ std = [
 	'serde/std',
 	'sp-io/std',
 	'sp-std/std',
-	'pallet-ipfs-core/std',
 ]
 
 runtime-benchmarks = ["frame-benchmarking"]

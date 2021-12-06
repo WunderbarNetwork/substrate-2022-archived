@@ -87,6 +87,7 @@ pub use sp_runtime::BuildStorage;
 
 // Import pallets
 pub use pallet_template;
+pub use pallet_ipfs_core;
 pub use pallet_rs_ipfs;
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
@@ -1254,6 +1255,11 @@ impl pallet_template::Config for Runtime {
 	type Event = Event;
 }
 
+impl pallet_ipfs_core::Config for Runtime {
+	type Event = Event;
+	type IpfsRandomness = RandomnessCollectiveFlip;
+}
+
 impl pallet_rs_ipfs::Config for Runtime {
 	type AuthorityId = pallet_rs_ipfs::crypto::TestAuthId;
 	type Call = Call;
@@ -1315,6 +1321,7 @@ construct_runtime!(
 		TransactionStorage: pallet_transaction_storage,
 		BagsList: pallet_bags_list,
 		Template: pallet_template,
+		IpfsCore: pallet_ipfs_core,
 		RsIPFS: pallet_rs_ipfs,
 	}
 );
@@ -1684,6 +1691,7 @@ impl_runtime_apis! {
 			list_benchmark!(list, extra, pallet_vesting, Vesting);
 			list_benchmark!(list, extra, pallet_template, Template);
 			list_benchmark!(list extra, palllet_rs_ipfs, RsIPFS);
+			list_benchmark!(list, extra, pallet_ipfs_core, IpfsCore);
 
 			let storage_info = AllPalletsWithSystem::storage_info();
 
@@ -1763,6 +1771,7 @@ impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
 			add_benchmark!(params, batches, pallet_template, Template);
 			add_benchmark!(params, batches, pallet_rs_ipfs, RsIPFS);
+			add_benchmark!(params, batches, pallet_ipfs_core, IpfsCore);
 
 			Ok(batches)
 		}
