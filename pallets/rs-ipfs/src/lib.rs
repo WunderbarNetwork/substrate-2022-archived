@@ -1,4 +1,3 @@
-// #![feature(option_result_contains)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 /// Edit this file to define custom logic or remove it if it is not needed.

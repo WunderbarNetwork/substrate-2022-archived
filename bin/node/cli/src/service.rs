@@ -357,6 +357,13 @@ pub fn new_full_base(
 			Some("//Alice"),
 		).expect("Creating key with account Alice should succeed");
 
+		//pocket-mints
+		sp_keystore::SyncCryptoStore::sr25519_generate_new(
+			&*keystore,
+			sp_core::crypto::key_types::POCKET_MINTS,
+			Some("//Alice"),
+		).expect("Creating key with account Alice should succeed");
+
 		sc_service::build_offchain_workers(
 			&config,
 			task_manager.spawn_handle(),

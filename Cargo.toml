@@ -139,6 +139,7 @@ members = [
 	"pallets/template",
 	"pallets/rs-ipfs",
 	"pallets/ipfs-core",
+	"pallets/pocket-mints",
 	"primitives/api",
 	"primitives/api/proc-macro",
 	"primitives/api/test",

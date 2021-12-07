@@ -102,6 +102,7 @@ pallet-vesting = { version = "4.0.0-dev", default-features = false, path = "../.
 pallet-template = { version = "3.0.0", default-features = false, path = "../../../pallets/template" }
 pallet-ipfs-core = { version = "4.0.0-dev", default-features = false, path = "../../../pallets/ipfs-core" }
 pallet-rs-ipfs = { version = "4.0.0-dev", default-features = false, path = "../../../pallets/rs-ipfs" }
+pallet-pocket-mints = { version = "4.0.0-dev", default-features = false, path = "../../../pallets/pocket-mints" }
 
 [build-dependencies]
 substrate-wasm-builder = { version = "5.0.0-dev", path = "../../../utils/wasm-builder" }
@@ -180,6 +181,7 @@ std = [
 	"pallet-template/std",
 	"pallet-rs-ipfs/std",
 	"pallet-ipfs-core/std",
+	"pallet-pocket-mints/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",
@@ -223,6 +225,7 @@ runtime-benchmarks = [
 	"pallet-template/runtime-benchmarks",
 	"pallet-rs-ipfs/runtime-benchmarks",
 	"pallet-ipfs-core/runtime-benchmarks",
+	"pallet-pocket-mints/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-executive/try-runtime",
@@ -266,6 +269,7 @@ try-runtime = [
 	"pallet-gilt/try-runtime",
 	"pallet-rs-ipfs/try-runtime",
 	"pallet-ipfs-core/try-runtime",
+	"pallet-pocket-mints/try-runtime",
 ]
 # Make contract callable functions marked as __unstable__ available. Do not enable
 # on live chains as those are subject to change.

@@ -203,7 +203,9 @@ pub fn ocw_parse_ipfs_response<T: Config>(responses: Vec<IpfsResponse>) -> Vec<u
 	//	- Return multiple responses worth of data.
 	for response in responses.clone() {
 		match response {
-			IpfsResponse::CatBytes(bytes_received) => { callback_response = bytes_received }
+			IpfsResponse::CatBytes(bytes_received) => {
+				if bytes_received.len() > 1 {  callback_response = bytes_received }
+			}
 			IpfsResponse::AddBytes(cid) | IpfsResponse::RemoveBlock(cid) => { callback_response = cid }
 
 			IpfsResponse::GetClosestPeers(peer_ids) |

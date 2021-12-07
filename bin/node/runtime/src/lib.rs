@@ -89,6 +89,7 @@ pub use sp_runtime::BuildStorage;
 pub use pallet_template;
 pub use pallet_ipfs_core;
 pub use pallet_rs_ipfs;
+pub use pallet_pocket_mints;
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub mod impls;
@@ -1267,6 +1268,13 @@ impl pallet_rs_ipfs::Config for Runtime {
 	type IpfsRandomness = RandomnessCollectiveFlip;
 }
 
+impl pallet_pocket_mints::Config for Runtime {
+	type AuthorityId = pallet_pocket_mints::crypto::TestAuthId;
+	type Call = Call;
+	type Event = Event;
+	type IpfsRandomness = RandomnessCollectiveFlip;
+}
+
 parameter_types! {
 	pub const GracePeriod: BlockNumber = 1;
 	pub const UnsignedInterval: BlockNumber = 2;
@@ -1323,6 +1331,7 @@ construct_runtime!(
 		Template: pallet_template,
 		IpfsCore: pallet_ipfs_core,
 		RsIPFS: pallet_rs_ipfs,
+		PocketMints: pallet_pocket_mints,
 	}
 );
 
@@ -1772,6 +1781,7 @@ impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_template, Template);
 			add_benchmark!(params, batches, pallet_rs_ipfs, RsIPFS);
 			add_benchmark!(params, batches, pallet_ipfs_core, IpfsCore);
+			add_benchmark!(params, batches, pallet_pocket_mints, PocketMints);
 
 			Ok(batches)
 		}

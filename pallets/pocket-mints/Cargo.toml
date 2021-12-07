@@ -24,6 +24,8 @@ sp-core = { default-features = false, version = "4.0.0-dev", path = "../../primi
 sp-io = { default-features = false, version = "4.0.0-dev", path = "../../primitives/io" }
 sp-runtime = { default-features = false, version = "4.0.0-dev", path = "../../primitives/runtime" }
 
+pallet-ipfs-core = { default-features = false, version = "4.0.0-dev", path = "../ipfs-core" }
+
 [features]
 default = ['std']
 std = [
@@ -33,6 +35,7 @@ std = [
 	'frame-system/std',
 	'frame-benchmarking/std',
 	'sp-std/std',
+	'pallet-ipfs-core/std',
 ]
 
 runtime-benchmarks = ["frame-benchmarking"]
