@@ -1,6 +1,6 @@
-use crate::{mock::*, Error, DataCommand };
+use crate::{mock::*, DataCommand, Error};
 use frame_support::{assert_noop, assert_ok};
-use log::{ info };
+use log::info;
 use std::str;
 
 /*#[test]
@@ -23,7 +23,6 @@ fn it_expects_ipfs_connect_to_add_a_connection() {
 		// println!("Value in commands: {:?}", RsIpfs::commands());
 		assert_eq!(RsIpfs::commands().unwrap().len(), 1);
 	});
-
 }
 #[test]
 fn it_expects_ipfs_connect_to_have_multiple_connections() {
@@ -95,7 +94,9 @@ fn it_expects_ipfs_add_bytes_to_store_bytes() {
 			DataCommand::AddBytes(value) => {
 				assert_eq!(str::from_utf8(value).unwrap(), message);
 			},
-			_ => { panic!("unexpected data type in DataQueue")}
+			_ => {
+				panic!("unexpected data type in DataQueue")
+			},
 		}
 	})
 }

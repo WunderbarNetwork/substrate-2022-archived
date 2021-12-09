@@ -3,34 +3,25 @@
 /// Edit this file to define custom logic or remove it if it is not needed.
 /// Learn more about FRAME and the core library of Substrate FRAME pallets:
 /// <https://docs.substrate.io/v3/runtime/frame>
-
-use codec::{ Decode, Encode };
-use frame_system::{
-	offchain::{ AppCrypto, CreateSignedTransaction, SendSignedTransaction, Signer},
-};
+use codec::{Decode, Encode};
+use frame_system::offchain::{AppCrypto, CreateSignedTransaction, SendSignedTransaction, Signer};
 use sp_runtime::{
 	offchain::{
 		ipfs,
 		storage::{MutateStorageError, StorageRetrievalError, StorageValueRef},
 	},
-	RuntimeDebug
+	RuntimeDebug,
 };
 
-use frame_support::{
-	traits::Randomness,
-	dispatch::DispatchResult,
-};
+use frame_support::{dispatch::DispatchResult, traits::Randomness};
 
 #[cfg(feature = "std")]
-use frame_support::serde::{ Deserialize, Serialize };
+use frame_support::serde::{Deserialize, Serialize};
 
-use sp_core::{
-	offchain::{ Duration, IpfsRequest, IpfsResponse, OpaqueMultiaddr, Timestamp},
-};
-use log::{ error, info };
-use sp_std::str;
-use sp_std::vec::Vec;
-use core::{convert::TryInto};
+use core::convert::TryInto;
+use log::{error, info};
+use sp_core::offchain::{Duration, IpfsRequest, IpfsResponse, OpaqueMultiaddr, Timestamp};
+use sp_std::{str, vec::Vec};
 
 #[cfg(test)]
 mod mock;
@@ -42,13 +33,11 @@ mod tests;
 mod benchmarking;
 
 pub mod crypto {
-	use sp_core::{
-		sr25519::Signature as Sr25519Signature,
-	};
+	use sp_core::sr25519::Signature as Sr25519Signature;
 	use sp_runtime::{
 		app_crypto::{app_crypto, sr25519},
 		traits::Verify,
-		MultiSignature, MultiSigner
+		MultiSignature, MultiSigner,
 	};
 	app_crypto!(sr25519, sp_core::crypto::key_types::POCKET_MINTS);
 
@@ -61,7 +50,9 @@ pub mod crypto {
 	}
 
 	// Implemented for mock runtime in tests
-	impl frame_system::offchain::AppCrypto<<Sr25519Signature as Verify>::Signer, Sr25519Signature> for TestAuthId {
+	impl frame_system::offchain::AppCrypto<<Sr25519Signature as Verify>::Signer, Sr25519Signature>
+		for TestAuthId
+	{
 		type RuntimeAppPublic = Public;
 		type GenericPublic = sp_core::sr25519::Public;
 		type GenericSignature = sp_core::sr25519::Signature;
@@ -77,22 +68,21 @@ pub mod pallet {
 	use super::*;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
-	use sp_core::crypto::KeyTypeId;
 	use pallet_ipfs_core as IpfsCore;
 	use pallet_ipfs_core::{
-		generate_id, ipfs_request, ocw_process_command,
-		ocw_parse_ipfs_response, addresses_to_utf8_safe_bytes,
-		IpfsCommand, CommandRequest,
-		Event as IpfsEvent,
-		Error as IpfsError,
+		addresses_to_utf8_safe_bytes, generate_id, ipfs_request, ocw_parse_ipfs_response,
+		ocw_process_command, CommandRequest, Error as IpfsError, Event as IpfsEvent, IpfsCommand,
 	};
+	use sp_core::crypto::KeyTypeId;
 
 	pub const KEY_TYPE: KeyTypeId = sp_core::crypto::key_types::POCKET_MINTS;
 	const PROCESSED_COMMANDS: &[u8; 24] = b"ipfs::pocket-mint-assets";
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_ipfs_core::Config + CreateSignedTransaction<Call<Self>> {
+	pub trait Config:
+		frame_system::Config + pallet_ipfs_core::Config + CreateSignedTransaction<Call<Self>>
+	{
 		/// The identifier type for an offchain worker.
 		type AuthorityId: AppCrypto<Self::Public, Self::Signature>;
 
@@ -119,7 +109,8 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn wallet_assets)]
-	pub type WalletAssets<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, Vec<Vec<u8>>, ValueQuery>;
+	pub type WalletAssets<T: Config> =
+		StorageMap<_, Twox64Concat, T::AccountId, Vec<Vec<u8>>, ValueQuery>;
 
 	/** Pallets use events to inform users when important changes are made.
 	 */
@@ -144,12 +135,15 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn offchain_worker(block_number: T::BlockNumber) {
-			if let Err(_err) = Self::print_metadata(&"*** IPFS off-chain worker started with ***") { error!("IPFS: Error occurred during `print_metadata`"); }
+			if let Err(_err) = Self::print_metadata(&"*** IPFS off-chain worker started with ***") {
+				error!("IPFS: Error occurred during `print_metadata`");
+			}
 
-			if let Err(_err) = Self::ocw_process_command_requests(block_number) { error!("IPFS: command request"); }
+			if let Err(_err) = Self::ocw_process_command_requests(block_number) {
+				error!("IPFS: command request");
+			}
 		}
 	}
-
 
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
 	// These functions materialize as "extrinsics", which are often compared to transactions.
@@ -167,23 +161,31 @@ pub mod pallet {
 			// commands.push(IpfsCommand::GetProviders(cid.clone()));
 			commands.push(IpfsCommand::CatBytes(cid.clone()));
 
-			let ipfs_command = CommandRequest::<T> { identifier: generate_id::<T>(), requester: requester.clone(), ipfs_commands: commands };
+			let ipfs_command = CommandRequest::<T> {
+				identifier: generate_id::<T>(),
+				requester: requester.clone(),
+				ipfs_commands: commands,
+			};
 
 			Commands::<T>::append(ipfs_command);
 			Ok(Self::deposit_event(Event::MintCid(requester)))
 		}
 
 		#[pallet::weight(0)]
-		pub fn ocw_callback(origin: OriginFor<T>, identifier: [u8; 32], data: Vec<u8>) -> DispatchResult {
+		pub fn ocw_callback(
+			origin: OriginFor<T>,
+			identifier: [u8; 32],
+			data: Vec<u8>,
+		) -> DispatchResult {
 			let signer = ensure_signed(origin)?;
 
 			// Side effect:, swap_remove will change the ordering of the Vec!
 			// TODO: the lock still exists in the ocw storage
-			let mut callback_command :Option<CommandRequest<T>> = None;
+			let mut callback_command: Option<CommandRequest<T>> = None;
 			Commands::<T>::mutate(|command_requests| {
 				let mut commands = command_requests.clone().unwrap();
 
-				if let Some(index) = commands.iter().position(|cmd| { cmd.identifier == identifier }) {
+				if let Some(index) = commands.iter().position(|cmd| cmd.identifier == identifier) {
 					info!("Removing at index {}", index.clone());
 					callback_command = Some(commands.swap_remove(index).clone());
 				};
@@ -208,28 +210,31 @@ pub mod pallet {
 		Im sure some more logic will go in here.
 		 */
 		fn ocw_process_command_requests(block_number: T::BlockNumber) -> Result<(), Error<T>> {
-			let commands: Vec<CommandRequest<T>> = Commands::<T>::get().unwrap_or(Vec::<CommandRequest<T>>::new());
+			let commands: Vec<CommandRequest<T>> =
+				Commands::<T>::get().unwrap_or(Vec::<CommandRequest<T>>::new());
 
 			for command_request in commands {
-
-				match ocw_process_command::<T>(block_number, command_request.clone(), PROCESSED_COMMANDS) {
+				match ocw_process_command::<T>(
+					block_number,
+					command_request.clone(),
+					PROCESSED_COMMANDS,
+				) {
 					Ok(responses) => {
 						let callback_response = ocw_parse_ipfs_response::<T>(responses);
 
 						Self::signed_callback(&command_request, callback_response);
-					}
-					Err(e) => {
-						match e {
-							IpfsError::<T>::RequestFailed => { error!("IPFS: failed to perform a request") },
-							_ => {}
-						}
-					}
+					},
+					Err(e) => match e {
+						IpfsError::<T>::RequestFailed => {
+							error!("IPFS: failed to perform a request")
+						},
+						_ => {},
+					},
 				}
 			}
 
 			Ok(())
 		}
-
 
 		/** Output the current state of IPFS worker */
 		fn print_metadata(message: &str) -> Result<(), IpfsError<T>> {
@@ -249,8 +254,11 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/** callback to the on-chain validators to continue processing the CID  **/
-		fn signed_callback(command_request: &CommandRequest<T>, data: Vec<u8>) -> Result<(), IpfsError<T>> {
+		/** callback to the on-chain validators to continue processing the CID  * */
+		fn signed_callback(
+			command_request: &CommandRequest<T>,
+			data: Vec<u8>,
+		) -> Result<(), IpfsError<T>> {
 			// TODO: Dynamic signers so that its not only the validator who can sign the request.
 			let signer = Signer::<T, T::AuthorityId>::all_accounts();
 			if !signer.can_sign() {
@@ -259,27 +267,34 @@ pub mod pallet {
 				return Err(IpfsError::<T>::RequestFailed)?
 			}
 
-			let results  = signer.send_signed_transaction(|_account| {
-				Call::ocw_callback{
-					identifier: command_request.identifier,
-					data: data.clone()
-				}
+			let results = signer.send_signed_transaction(|_account| Call::ocw_callback {
+				identifier: command_request.identifier,
+				data: data.clone(),
 			});
 			for (account, result) in &results {
 				match result {
-					Ok(()) => { info!("callback sent") },
-					Err(e) => { error!("Failed to submit transaction {:?}", e)}
+					Ok(()) => {
+						info!("callback sent")
+					},
+					Err(e) => {
+						error!("Failed to submit transaction {:?}", e)
+					},
 				}
 			}
 			// TODO: return a better Result
 			Ok(())
 		}
 
-		// - Ideally the callback function can be override by another pallet that is coupled to this one allowing for custom functionality.
+		// 
+		// - Ideally the callback function can be override by another pallet that is coupled to this
+		//   one allowing for custom functionality.
 		// - data can be used for callbacks IE add a cid to the signer / uploader.
 		// - Validate a connected peer has the CID, and which peer has it etc.
 		// TODO: Result
-		fn command_callback(command_request: &CommandRequest<T>, data: Vec<u8>) -> Result<(), Error<T>>{
+		fn command_callback(
+			command_request: &CommandRequest<T>,
+			data: Vec<u8>,
+		) -> Result<(), Error<T>> {
 			if let Ok(utf8_str) = str::from_utf8(&*data) {
 				info!("Received string: {:?}", utf8_str);
 			} else {
@@ -295,16 +310,21 @@ pub mod pallet {
 							WalletAssets::<T>::mutate(&owner, |assets| {
 								assets.push(cid.clone());
 							});
-							Self::deposit_event(Event::MintedCid(command_request.clone().requester, cid.clone()));
+							Self::deposit_event(Event::MintedCid(
+								command_request.clone().requester,
+								cid.clone(),
+							));
 						} else {
-							Self::deposit_event(Event::FailedToFindCid(command_request.clone().requester, cid.clone()));
-							return Err(Error::<T>::FailedToFindCid);
+							Self::deposit_event(Event::FailedToFindCid(
+								command_request.clone().requester,
+								cid.clone(),
+							));
+							return Err(Error::<T>::FailedToFindCid)
 						}
-					}
-					_ => {}
+					},
+					_ => {},
 				}
 			}
-
 
 			// TODO: return a better Result
 			Ok(())

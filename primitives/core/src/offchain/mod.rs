@@ -225,7 +225,7 @@ pub enum IpfsRequest {
 		/// The topic to publish the message to.
 		topic: Vec<u8>,
 		/// The message to publish.
-		message: Vec<u8>
+		message: Vec<u8>,
 	},
 	/// Remove a block from the ipfs repo. A pinned block cannot be removed.
 	RemoveBlock(Vec<u8>),
@@ -290,7 +290,9 @@ pub enum IpfsResponse {
 }
 
 /// Opaque type for offchain IPFS requests.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, RuntimeDebug, Encode, Decode, PassByInner)]
+#[derive(
+	Clone, Copy, PartialEq, Eq, PartialOrd, Ord, RuntimeDebug, Encode, Decode, PassByInner,
+)]
 #[cfg_attr(feature = "std", derive(Hash))]
 pub struct IpfsRequestId(pub u16);
 
@@ -568,7 +570,11 @@ pub trait Externalities: Send {
 	/// Initiates an IPFS request.
 	fn ipfs_request_start(&mut self, request: IpfsRequest) -> Result<IpfsRequestId, ()>;
 
-	fn ipfs_response_wait(&mut self, ids: &[IpfsRequestId], deadline: Option<Timestamp>) -> Vec<IpfsRequestStatus>;
+	fn ipfs_response_wait(
+		&mut self,
+		ids: &[IpfsRequestId],
+		deadline: Option<Timestamp>,
+	) -> Vec<IpfsRequestStatus>;
 
 	/// Set the authorized nodes from runtime.
 	///
@@ -656,7 +662,11 @@ impl<T: Externalities + ?Sized> Externalities for Box<T> {
 		(&mut **self).ipfs_request_start(request)
 	}
 
-	fn ipfs_response_wait(&mut self, ids: &[IpfsRequestId], deadline: Option<Timestamp>) -> Vec<IpfsRequestStatus> {
+	fn ipfs_response_wait(
+		&mut self,
+		ids: &[IpfsRequestId],
+		deadline: Option<Timestamp>,
+	) -> Vec<IpfsRequestStatus> {
 		(&mut **self).ipfs_response_wait(ids, deadline)
 	}
 
@@ -772,7 +782,11 @@ impl<T: Externalities> Externalities for LimitedExternalities<T> {
 		self.externalities.ipfs_request_start(request)
 	}
 
-	fn ipfs_response_wait(&mut self, ids: &[IpfsRequestId], deadline: Option<Timestamp>) -> Vec<IpfsRequestStatus> {
+	fn ipfs_response_wait(
+		&mut self,
+		ids: &[IpfsRequestId],
+		deadline: Option<Timestamp>,
+	) -> Vec<IpfsRequestStatus> {
 		self.check(Capabilities::IPFS, "ipfs_response_wait");
 		self.externalities.ipfs_response_wait(ids, deadline)
 	}

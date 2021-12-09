@@ -25,8 +25,9 @@ pub use http::SharedClient;
 use sc_network::{Multiaddr, PeerId};
 use sp_core::{
 	offchain::{
-		self, HttpError, HttpRequestId, HttpRequestStatus, OffchainStorage, OpaqueMultiaddr,
-		OpaqueNetworkState, StorageKind, Timestamp, IpfsRequest, IpfsRequestId, IpfsRequestStatus,
+		self, HttpError, HttpRequestId, HttpRequestStatus, IpfsRequest, IpfsRequestId,
+		IpfsRequestStatus, OffchainStorage, OpaqueMultiaddr, OpaqueNetworkState, StorageKind,
+		Timestamp,
 	},
 	OpaquePeerId,
 };
@@ -225,7 +226,11 @@ impl offchain::Externalities for Api {
 		self.ipfs.request_start(request)
 	}
 
-	fn ipfs_response_wait(&mut self, ids: &[IpfsRequestId], deadline: Option<Timestamp>) -> Vec<IpfsRequestStatus> {
+	fn ipfs_response_wait(
+		&mut self,
+		ids: &[IpfsRequestId],
+		deadline: Option<Timestamp>,
+	) -> Vec<IpfsRequestStatus> {
 		self.ipfs.response_wait(ids, deadline)
 	}
 
@@ -304,7 +309,7 @@ pub(crate) struct AsyncApi<I: ::ipfs::IpfsTypes> {
 	ipfs: Option<ipfs::IpfsWorker<I>>,
 }
 
-impl <I: ::ipfs::IpfsTypes> AsyncApi<I> {
+impl<I: ::ipfs::IpfsTypes> AsyncApi<I> {
 	/// Creates new Offchain extensions API implementation an the asynchronous processing part.
 	pub fn new(
 		network_provider: Arc<dyn NetworkProvider + Send + Sync>,
@@ -316,7 +321,7 @@ impl <I: ::ipfs::IpfsTypes> AsyncApi<I> {
 		// initialize the IpfsWorkers
 		let (ipfs_api, ipfs_worker) = ipfs::ipfs(ipfs_node);
 
-		let api = Api { network_provider, is_validator, http: http_api, ipfs: ipfs_api};
+		let api = Api { network_provider, is_validator, http: http_api, ipfs: ipfs_api };
 
 		let async_api = Self { http: Some(http_worker), ipfs: Some(ipfs_worker) };
 
@@ -325,7 +330,7 @@ impl <I: ::ipfs::IpfsTypes> AsyncApi<I> {
 
 	/// Run a processing task for the API
 	pub async fn process(self) {
-		let http =  self.http.expect("`process` is only called once; qed");
+		let http = self.http.expect("`process` is only called once; qed");
 		let ipfs = self.ipfs.expect("`process` is only called once; qed");
 
 		futures::join!(http, ipfs);

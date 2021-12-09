@@ -86,10 +86,10 @@ pub use pallet_sudo::Call as SudoCall;
 pub use sp_runtime::BuildStorage;
 
 // Import pallets
-pub use pallet_template;
 pub use pallet_ipfs_core;
 pub use pallet_ipfs_example;
 pub use pallet_pocket_mints;
+pub use pallet_template;
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub mod impls;

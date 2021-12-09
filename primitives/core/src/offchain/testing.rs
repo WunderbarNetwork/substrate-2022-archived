@@ -23,9 +23,9 @@
 use crate::{
 	offchain::{
 		self, storage::InMemOffchainStorage, HttpError, HttpRequestId as RequestId,
-		HttpRequestStatus as RequestStatus, OffchainOverlayedChange, OffchainStorage,
-		OpaqueNetworkState, StorageKind, Timestamp, TransactionPool, IpfsRequest, IpfsRequestId,
-		IpfsRequestStatus, IpfsResponse
+		HttpRequestStatus as RequestStatus, IpfsRequest, IpfsRequestId, IpfsRequestStatus,
+		IpfsResponse, OffchainOverlayedChange, OffchainStorage, OpaqueNetworkState, StorageKind,
+		Timestamp, TransactionPool,
 	},
 	OpaquePeerId,
 };
@@ -370,13 +370,19 @@ impl offchain::Externalities for TestOffchainExt {
 		Ok(id)
 	}
 
-	fn ipfs_response_wait(&mut self, ids: &[IpfsRequestId], _deadline: Option<Timestamp>) -> Vec<IpfsRequestStatus> {
+	fn ipfs_response_wait(
+		&mut self,
+		ids: &[IpfsRequestId],
+		_deadline: Option<Timestamp>,
+	) -> Vec<IpfsRequestStatus> {
 		let state = self.0.read();
 
-		ids.iter().map(|id| match state.ipfs_requests.get(id) {
-			Some(_) => IpfsRequestStatus::Finished(IpfsResponse::Success),
-			None => IpfsRequestStatus::Invalid,
-		}).collect()
+		ids.iter()
+			.map(|id| match state.ipfs_requests.get(id) {
+				Some(_) => IpfsRequestStatus::Finished(IpfsResponse::Success),
+				None => IpfsRequestStatus::Invalid,
+			})
+			.collect()
 	}
 
 	fn set_authorized_nodes(&mut self, _nodes: Vec<OpaquePeerId>, _authorized_only: bool) {

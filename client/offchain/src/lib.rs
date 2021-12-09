@@ -118,15 +118,29 @@ impl<Client, Block: traits::Block> OffchainWorkers<Client, Block> {
 
 				(ipfs, node_info)
 			})
-		}).join().expect("Could not start the IPFS async runtime!");
+		})
+		.join()
+		.expect("Could not start the IPFS async runtime!");
 
-		log::info!("IPFS: Node started with PeerId {} and address {:?}", ipfs_info.0.into_peer_id(), ipfs_info.1);
+		log::info!(
+			"IPFS: Node started with PeerId {} and address {:?}",
+			ipfs_info.0.into_peer_id(),
+			ipfs_info.1
+		);
 
-		Self::new_with_options(client, ipfs_node, OffchainWorkerOptions { enable_http_requests: true, enable_ipfs_requests: true })
+		Self::new_with_options(
+			client,
+			ipfs_node,
+			OffchainWorkerOptions { enable_http_requests: true, enable_ipfs_requests: true },
+		)
 	}
 
 	/// Creates new [`OffchainWorkers`] using the given `options`.
-	pub fn new_with_options(client: Arc<Client>, ipfs_node: ipfs::Ipfs<ipfs::Types>, options: OffchainWorkerOptions) -> Self {
+	pub fn new_with_options(
+		client: Arc<Client>,
+		ipfs_node: ipfs::Ipfs<ipfs::Types>,
+		options: OffchainWorkerOptions,
+	) -> Self {
 		Self {
 			client,
 			ipfs_node,
@@ -180,8 +194,12 @@ where
 		debug!("Checking offchain workers at {:?}: version:{}", at, version);
 
 		let process = (version > 0).then(|| {
-			let (api, runner) =
-				api::AsyncApi::new(network_provider, self.ipfs_node.clone(), is_validator, self.shared_http_client.clone());
+			let (api, runner) = api::AsyncApi::new(
+				network_provider,
+				self.ipfs_node.clone(),
+				is_validator,
+				self.shared_http_client.clone(),
+			);
 			debug!("Spawning offchain workers at {:?}", at);
 
 			let header = header.clone();
