@@ -88,7 +88,7 @@ pub use sp_runtime::BuildStorage;
 // Import pallets
 pub use pallet_template;
 pub use pallet_ipfs_core;
-pub use pallet_rs_ipfs;
+pub use pallet_ipfs_example;
 pub use pallet_pocket_mints;
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
@@ -1258,8 +1258,8 @@ impl pallet_ipfs_core::Config for Runtime {
 	type IpfsRandomness = RandomnessCollectiveFlip;
 }
 
-impl pallet_rs_ipfs::Config for Runtime {
-	type AuthorityId = pallet_rs_ipfs::crypto::TestAuthId;
+impl pallet_ipfs_example::Config for Runtime {
+	type AuthorityId = pallet_ipfs_example::crypto::TestAuthId;
 	type Call = Call;
 	type Event = Event;
 	type IpfsRandomness = RandomnessCollectiveFlip;
@@ -1327,7 +1327,7 @@ construct_runtime!(
 		BagsList: pallet_bags_list,
 		Template: pallet_template,
 		IpfsCore: pallet_ipfs_core,
-		RsIPFS: pallet_rs_ipfs,
+		IpfsExample: pallet_ipfs_example,
 		PocketMints: pallet_pocket_mints,
 	}
 );
@@ -1696,7 +1696,7 @@ impl_runtime_apis! {
 			list_benchmark!(list, extra, pallet_utility, Utility);
 			list_benchmark!(list, extra, pallet_vesting, Vesting);
 			list_benchmark!(list, extra, pallet_template, Template);
-			list_benchmark!(list extra, palllet_rs_ipfs, RsIPFS);
+			list_benchmark!(list extra, palllet_rs_ipfs, IpfsExample);
 			list_benchmark!(list, extra, pallet_ipfs_core, IpfsCore);
 
 			let storage_info = AllPalletsWithSystem::storage_info();
@@ -1776,7 +1776,7 @@ impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_utility, Utility);
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
 			add_benchmark!(params, batches, pallet_template, Template);
-			add_benchmark!(params, batches, pallet_rs_ipfs, RsIPFS);
+			add_benchmark!(params, batches, pallet_ipfs_example, IpfsExample);
 			add_benchmark!(params, batches, pallet_ipfs_core, IpfsCore);
 			add_benchmark!(params, batches, pallet_pocket_mints, PocketMints);
 

@@ -350,7 +350,7 @@ pub fn new_full_base(
 		// 	Some("//Alice"),
 		// ).expect("Creating key with account Alice should succeed");
 
-		//rs-ipfs
+		//ipfs-exmaple
 		sp_keystore::SyncCryptoStore::sr25519_generate_new(
 			&*keystore,
 			sp_core::crypto::key_types::IPFS,
