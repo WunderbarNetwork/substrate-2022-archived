@@ -135,10 +135,6 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn offchain_worker(block_number: T::BlockNumber) {
-			if let Err(_err) = Self::print_metadata(&"*** IPFS off-chain worker started with ***") {
-				error!("IPFS: Error occurred during `print_metadata`");
-			}
-
 			if let Err(_err) = Self::ocw_process_command_requests(block_number) {
 				error!("IPFS: command request");
 			}
@@ -150,6 +146,11 @@ pub mod pallet {
 	// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		/** Mint a CID to an account ID, verifing that the runtimes IPFS node is able to find the content
+		  - `address` can either be an empty string indicating that the CID was uploaded through the runtime or
+			an IPFS url eg: /ip4/127.0.0.1/tcp/4001/p2p/<ipfs-id>
+		  - `cid` a cid of the content the user wants to mint.
+		 !*/
 		#[pallet::weight(300)]
 		pub fn mint_cid(origin: OriginFor<T>, address: Vec<u8>, cid: Vec<u8>) -> DispatchResult {
 			let requester = ensure_signed(origin)?;
@@ -158,7 +159,6 @@ pub mod pallet {
 			// TODO : check that the cid doesn't already exist
 
 			commands.push(IpfsCommand::ConnectTo(address));
-			// commands.push(IpfsCommand::GetProviders(cid.clone()));
 			commands.push(IpfsCommand::CatBytes(cid.clone()));
 
 			let ipfs_command = CommandRequest::<T> {
@@ -236,30 +236,11 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/** Output the current state of IPFS worker */
-		fn print_metadata(message: &str) -> Result<(), IpfsError<T>> {
-			let peers = if let IpfsResponse::Peers(peers) = ipfs_request::<T>(IpfsRequest::Peers)? {
-				peers
-			} else {
-				Vec::new()
-			};
-
-			info!("{}", message);
-			info!("IPFS: Is currently connected to {} peers", peers.len());
-			if !peers.is_empty() {
-				info!("IPFS: Peer Ids: {:?}", str::from_utf8(&addresses_to_utf8_safe_bytes(peers)))
-			}
-			info!("IPFS: CommandRequest size: {}", Commands::<T>::decode_len().unwrap_or(0));
-
-			Ok(())
-		}
-
 		/** callback to the on-chain validators to continue processing the CID  * */
 		fn signed_callback(
 			command_request: &CommandRequest<T>,
 			data: Vec<u8>,
 		) -> Result<(), IpfsError<T>> {
-			// TODO: Dynamic signers so that its not only the validator who can sign the request.
 			let signer = Signer::<T, T::AuthorityId>::all_accounts();
 			if !signer.can_sign() {
 				error!("*** IPFS *** ---- No local accounts available. Consider adding one via `author_insertKey` RPC.");
@@ -285,7 +266,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		// 
+		//
 		// - Ideally the callback function can be override by another pallet that is coupled to this
 		//   one allowing for custom functionality.
 		// - data can be used for callbacks IE add a cid to the signer / uploader.
@@ -295,12 +276,6 @@ pub mod pallet {
 			command_request: &CommandRequest<T>,
 			data: Vec<u8>,
 		) -> Result<(), Error<T>> {
-			if let Ok(utf8_str) = str::from_utf8(&*data) {
-				info!("Received string: {:?}", utf8_str);
-			} else {
-				info!("Received data: {:?}", data);
-			}
-
 			let owner = &command_request.clone().requester;
 
 			for command in command_request.clone().ipfs_commands {
@@ -325,8 +300,6 @@ pub mod pallet {
 					_ => {},
 				}
 			}
-
-			// TODO: return a better Result
 			Ok(())
 		}
 	}

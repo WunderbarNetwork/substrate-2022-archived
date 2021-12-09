@@ -335,18 +335,9 @@ pub mod pallet {
 		pub ipfs_commands: Vec<IpfsCommand>,
 	}
 
-	// The pallet's runtime storage items.
-	// https://docs.substrate.io/v3/runtime/storage
-
-	/** Store a list of Commands for the ocw to process */
-	#[pallet::storage]
-	#[pallet::getter(fn commands)]
-	pub type Commands<T: Config> = StorageValue<_, Vec<CommandRequest<T>>>;
-
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		TestEvent(T::AccountId),
 	}
 
 	/** Errors inform users that something went wrong.
@@ -367,7 +358,5 @@ pub mod pallet {
 	// These functions materialize as "extrinsics", which are often compared to transactions.
 	// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
 	#[pallet::call]
-	impl<T: Config> Pallet<T> {}
-
 	impl<T: Config> Pallet<T> {}
 }
