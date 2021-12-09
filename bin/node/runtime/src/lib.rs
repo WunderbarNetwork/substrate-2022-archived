@@ -508,7 +508,6 @@ parameter_types! {
 }
 
 use frame_election_provider_support::onchain;
-
 impl onchain::Config for Runtime {
 	type Accuracy = Perbill;
 	type DataProvider = Staking;
@@ -938,8 +937,6 @@ impl pallet_sudo::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
 }
-
-// pub type SignedPayload
 
 parameter_types! {
 	pub const ImOnlineUnsignedPriority: TransactionPriority = TransactionPriority::max_value();

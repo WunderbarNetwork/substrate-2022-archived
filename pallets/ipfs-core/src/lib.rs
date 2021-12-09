@@ -44,6 +44,10 @@ mod benchmarking;
 
 pub use pallet::*;
 
+/** Create a "unique" id for each command
+
+	Note: Nodes on the network will come to the same value for each id.
+ */
 pub fn generate_id<T: Config>() -> [u8; 32] {
 	let payload = (
 		T::IpfsRandomness::random(&b"ipfs-request-id"[..]).0,
@@ -141,54 +145,11 @@ pub fn ocw_process_command<T: Config>(block_number: T::BlockNumber, command_requ
 pub fn ipfs_request<T: Config>(request: IpfsRequest) -> Result<IpfsResponse, Error<T>> {
 	let ipfs_request = ipfs::PendingRequest::new(request).map_err(|_| Error::CannotCreateRequest)?;
 
+	// TODO: make milliseconds a const
 	ipfs_request.try_wait(Some(sp_io::offchain::timestamp().add(Duration::from_millis(1_200))))
 		.map_err(|_| Error::<T>::RequestTimeout)?
 		.map(|req| req.response)
 		.map_err(|_error| { Error::<T>::RequestFailed })
-}
-
-/** Using the CommandRequest<T>.identifier we can attempt to create a lock via StorageValueRef,
-leaving behind a block number of when the lock was formed. */
-fn acquire_command_request_lock<T: Config>(block_number: T::BlockNumber, command_request: &CommandRequest<T>) -> Result<T::BlockNumber, MutateStorageError<T::BlockNumber, Error<T>>> {
-	let storage = StorageValueRef::persistent(&command_request.identifier);
-
-	storage.mutate(|command_identifier: Result<Option<T::BlockNumber>, StorageRetrievalError>| {
-		match command_identifier {
-			Ok(Some(block))  => {
-				if block_number != block {
-					info!("Lock failed, lock was not in current block");
-					Err(Error::<T>::FailedToAcquireLock)
-				} else {
-					Ok(block)
-				}
-			},
-			_ => {
-				info!("IPFS: Acquired lock!");
-				Ok(block_number)
-			},
-		}
-	})
-}
-
-/** Store a list of command identifiers to remove the lock in a following block */
-fn processed_commands<T: Config>(command_request: &CommandRequest<T>, persistence_key: &[u8; 24]) -> Result<Vec<[u8; 32]>, MutateStorageError<Vec<[u8; 32]>, ()>> {
-	let processed_commands = StorageValueRef::persistent(persistence_key);
-
-	processed_commands.mutate(|processed_commands: Result<Option<Vec<[u8; 32]>>, StorageRetrievalError>| {
-		match processed_commands {
-			Ok(Some(mut commands)) => {
-				commands.push(command_request.identifier);
-
-				Ok(commands)
-			}
-			_ => {
-				let mut res = Vec::<[u8; 32]>::new();
-				res.push(command_request.identifier);
-
-				Ok(res)
-			}
-		}
-	})
 }
 
 /** Parse Each ipfs response resulting in bytes to be used in callback
@@ -250,6 +211,49 @@ pub fn multiple_bytes_to_utf8_safe_bytes(response: Vec<Vec<u8>>) -> Vec<u8> {
 	bytes
 }
 
+/** Using the CommandRequest<T>.identifier we can attempt to create a lock via StorageValueRef,
+leaving behind a block number of when the lock was formed. */
+fn acquire_command_request_lock<T: Config>(block_number: T::BlockNumber, command_request: &CommandRequest<T>) -> Result<T::BlockNumber, MutateStorageError<T::BlockNumber, Error<T>>> {
+	let storage = StorageValueRef::persistent(&command_request.identifier);
+
+	storage.mutate(|command_identifier: Result<Option<T::BlockNumber>, StorageRetrievalError>| {
+		match command_identifier {
+			Ok(Some(block))  => {
+				if block_number != block {
+					info!("Lock failed, lock was not in current block");
+					Err(Error::<T>::FailedToAcquireLock)
+				} else {
+					Ok(block)
+				}
+			},
+			_ => {
+				info!("IPFS: Acquired lock!");
+				Ok(block_number)
+			},
+		}
+	})
+}
+
+/** Store a list of command identifiers to remove the lock in a following block */
+fn processed_commands<T: Config>(command_request: &CommandRequest<T>, persistence_key: &[u8; 24]) -> Result<Vec<[u8; 32]>, MutateStorageError<Vec<[u8; 32]>, ()>> {
+	let processed_commands = StorageValueRef::persistent(persistence_key);
+
+	processed_commands.mutate(|processed_commands: Result<Option<Vec<[u8; 32]>>, StorageRetrievalError>| {
+		match processed_commands {
+			Ok(Some(mut commands)) => {
+				commands.push(command_request.identifier);
+
+				Ok(commands)
+			}
+			_ => {
+				let mut res = Vec::<[u8; 32]>::new();
+				res.push(command_request.identifier);
+
+				Ok(res)
+			}
+		}
+	})
+}
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -305,7 +309,12 @@ pub mod pallet {
 		GetProviders(Vec<u8>),
 	}
 
-	/** CommandRequest is used for issuing requests to an ocw that can be connected to connections to IPFS nodes. **/
+	/** CommandRequest is used for issuing requests to an ocw that has IPFS within its runtime.
+
+		- identifier: [u8; 32]
+		- requester: T::AccountId
+		- ipfs_commands Vec<IpfsCommand>
+	**/
 	#[derive(Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
 	#[scale_info(skip_type_params(T))]
 	#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
