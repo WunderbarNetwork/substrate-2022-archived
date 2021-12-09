@@ -9838,7 +9838,7 @@ dependencies = [
  "sp-trie",
  "thiserror",
  "tracing",
- "trie-db",
+ "trie-db 0.23.0",
  "trie-root",
 ]
 
@@ -9946,7 +9946,7 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "trie-bench",
- "trie-db",
+ "trie-db 0.23.0",
  "trie-root",
  "trie-standardmap",
 ]
@@ -10251,7 +10251,7 @@ dependencies = [
  "sp-version",
  "substrate-test-runtime-client",
  "substrate-wasm-builder",
- "trie-db",
+ "trie-db 0.23.0",
 ]
 
 [[package]]
@@ -10884,7 +10884,7 @@ dependencies = [
  "keccak-hasher",
  "memory-db",
  "parity-scale-codec",
- "trie-db",
+ "trie-db 0.22.6",
  "trie-root",
  "trie-standardmap",
 ]
@@ -10894,6 +10894,19 @@ name = "trie-db"
 version = "0.22.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9eac131e334e81b6b3be07399482042838adcd7957aa0010231d0813e39e02fa"
+dependencies = [
+ "hash-db",
+ "hashbrown 0.11.2",
+ "log 0.4.14",
+ "rustc-hex",
+ "smallvec 1.7.0",
+]
+
+[[package]]
+name = "trie-db"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3ddae50680c12ef75bfbf58416ca6622fa43d879553f6cb2ed1a817346e1ffe"
 dependencies = [
  "hash-db",
  "hashbrown 0.11.2",
