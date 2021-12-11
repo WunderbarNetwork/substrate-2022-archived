@@ -1,11 +1,9 @@
-// #![feature(option_result_contains)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 /// Edit this file to define custom logic or remove it if it is not needed.
 /// Learn more about FRAME and the core library of Substrate FRAME pallets:
 /// <https://docs.substrate.io/v3/runtime/frame>
 use codec::{Decode, Encode};
-use frame_system::offchain::{AppCrypto, CreateSignedTransaction, SendSignedTransaction, Signer};
 use sp_runtime::{
 	offchain::{
 		ipfs,
@@ -14,14 +12,13 @@ use sp_runtime::{
 	RuntimeDebug,
 };
 
-use frame_support::{dispatch::DispatchResult, traits::Randomness};
+use frame_support::traits::Randomness;
 
 #[cfg(feature = "std")]
 use frame_support::serde::{Deserialize, Serialize};
 
-use core::convert::TryInto;
-use log::{error, info};
-use sp_core::offchain::{Duration, IpfsRequest, IpfsResponse, OpaqueMultiaddr, Timestamp};
+use log::info;
+use sp_core::offchain::{Duration, IpfsRequest, IpfsResponse, OpaqueMultiaddr};
 use sp_std::{str, vec::Vec};
 
 #[cfg(test)]
@@ -193,10 +190,13 @@ pub fn ocw_parse_ipfs_response<T: Config>(responses: Vec<IpfsResponse>) -> Vec<u
 
 	callback_response
 }
+
+/** Convert a vector of addresses into a comma seperated utf8 safe vector of bytes */
 pub fn addresses_to_utf8_safe_bytes(addresses: Vec<OpaqueMultiaddr>) -> Vec<u8> {
 	multiple_bytes_to_utf8_safe_bytes(addresses.iter().map(|addr| addr.0.clone()).collect())
 }
 
+/** Flatten a Vector of bytes into a comma seperated utf8 safe vector of bytes */
 pub fn multiple_bytes_to_utf8_safe_bytes(response: Vec<Vec<u8>>) -> Vec<u8> {
 	let mut bytes = Vec::<u8>::new();
 
@@ -270,7 +270,6 @@ fn processed_commands<T: Config>(
 pub mod pallet {
 	use super::*;
 	use frame_support::pallet_prelude::*;
-	use frame_system::pallet_prelude::*;
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
