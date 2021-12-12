@@ -366,6 +366,7 @@ pub fn testnet_genesis(
 		transaction_storage: Default::default(),
 		scheduler: Default::default(),
 		transaction_payment: Default::default(),
+		ipfs_example: Default::default(),
 	}
 }
 

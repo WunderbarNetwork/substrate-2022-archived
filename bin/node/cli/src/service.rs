@@ -342,11 +342,36 @@ pub fn new_full_base(
 		})?;
 
 	if config.offchain_worker.enabled {
+		let keystore = keystore_container.sync_keystore();
+		// ocw-exmaple
+		// sp_keystore::SyncCryptoStore::sr25519_generate_new(
+		// 	&*keystore,
+		// 	sp_core::crypto::key_types::OCW_EXAMPLE,
+		// 	Some("//Alice"),
+		// ).expect("Creating key with account Alice should succeed");
+
+		//ipfs-exmaple
+		sp_keystore::SyncCryptoStore::sr25519_generate_new(
+			&*keystore,
+			sp_core::crypto::key_types::IPFS,
+			Some("//Alice"),
+		)
+		.expect("Creating key with account Alice should succeed");
+
+		//pocket-mints
+		sp_keystore::SyncCryptoStore::sr25519_generate_new(
+			&*keystore,
+			sp_core::crypto::key_types::POCKET_MINTS,
+			Some("//Alice"),
+		)
+		.expect("Creating key with account Alice should succeed");
+
 		sc_service::build_offchain_workers(
 			&config,
 			task_manager.spawn_handle(),
 			client.clone(),
 			network.clone(),
+			task_manager.ipfs_rt.clone(),
 		);
 	}
 
