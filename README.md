@@ -30,18 +30,14 @@ The reason for the split-licensing is to ensure that for the vast majority of te
 In the interests of the community, we require any deeper improvements made to Substrate's core logic (e.g. Substrate's internal consensus, crypto or database code) to be contributed back so everyone can benefit.
 
 ### ❗ ✨✨✨ Polkadot APAC hackathon submission ✨✨✨❗
-
-Pocket Dimension's hackathon submission is our implementation of IPFS in Substrate Runtime! (Frame V3)
+### ✨✨✨ Implementation of IPFS in Substrate Runtime! (Frame V3) ✨✨✨
 
 It's a fully functional IPFS node in the runtime that's able to communicate P2P across its swarm of peers.
 
 Using our IPFS pallet you can create a "Pocket Dimension" where data can be added through an IPFS command that's picked up and processed by an offchain worker. If things are successful, then the offchain worker will log and send the response from IPFS.
 
-### Code can be found in the pull request 
-https://github.com/DanHenton/pocket-substrate/pull/8
-
-### Features:
-IPFS into substrates runtime
+### Features :
+**IPFS into substrates runtime**
 - Add rusts implementation of IPFS into the substrate runtime, where an off-chain worker is able to interact with IPFS and connected peers.
 
 **pallet-ipfs-core:**
@@ -67,7 +63,8 @@ For Implementing a new IPFS pallet see our ipfs-template [pull request](https://
     
     cargo run --release -- --dev --tmp
 ```
-3) Your node should start up with something similar to the bellow image. Note that we can see the IPFS PeerID . This means we have successfully launched substrate with IPFS in its runtime. ![node-start](https://user-images.githubusercontent.com/7565646/145338654-58595d55-bbcd-4882-95e7-b83751ee00f8.png)
+3) Your node should start up with something similar to the bellow image. Note that we can see the IPFS PeerID . This means we have successfully launched substrate with IPFS in its runtime. 
+![node-start](https://user-images.githubusercontent.com/7565646/145338654-58595d55-bbcd-4882-95e7-b83751ee00f8.png)
 
 
 4) Using https://polkadot.js.org/apps/#/explorer connect to locally running node
@@ -78,9 +75,10 @@ For Implementing a new IPFS pallet see our ipfs-template [pull request](https://
 ### Architecture overview:
 
 **Architecture of the IPFS Pallets:**
-![pocket-dimension-pallets](https://user-images.githubusercontent.com/7565646/145331139-eb6a1254-7bd0-4595-916f-f279ec81b5e2.png)
+<br/>
+![pocket-dimension-pallets](https://user-images.githubusercontent.com/7565646/145698271-4dc1a728-78e6-4310-9dc5-c0712a252490.png)
 
+<br/><br/>
 **Example process flow of interacting with the IPFS in substrate runtime:**
+<br/>
 ![Pocket-dimensions-interacting-with-ipfs](https://user-images.githubusercontent.com/7565646/145332202-fb829876-4b1f-44f0-8d06-d0878bd8cd53.png)
-
- 
