@@ -1,11 +1,11 @@
 [package]
 name = 'pallet-ipfs-example'
 version = "4.0.0-dev"
-description = "FRAME pallet template for defining custom runtime logic."
+description = "FRAME pallet that provides a almost complete set of extrinsics for interacting with an IPFS ocw"
 authors = ['Dan Henton <https://github.com/danhenton>']
 homepage = "https://substrate.io/"
 edition = '2018'
-license = "Unlicense"
+license = "Apache-2.0"
 publish = false
 repository = "https://github.com/substrate-developer-hub/substrate-node-template/"
 

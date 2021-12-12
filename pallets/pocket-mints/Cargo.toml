@@ -1,11 +1,11 @@
 [package]
 name = 'pallet-pocket-mints'
 version = "4.0.0-dev"
-description = "FRAME pallet template for defining custom runtime logic."
-authors = ['Substrate DevHub <https://github.com/substrate-developer-hub>']
+description = "FRAME pallet that provides a crude minting functionality that verifies the existence and locati of a CID before minting it to an address. Coupled to the ipfs-core pallet"
+authors = ['Dan Henton https://github.com/DanHenton']
 homepage = "https://substrate.io/"
 edition = '2018'
-license = "Unlicense"
+license = "Apache-2.0"
 publish = false
 repository = "https://github.com/substrate-developer-hub/substrate-node-template/"
 

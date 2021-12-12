@@ -29,3 +29,58 @@ The reason for the split-licensing is to ensure that for the vast majority of te
 
 In the interests of the community, we require any deeper improvements made to Substrate's core logic (e.g. Substrate's internal consensus, crypto or database code) to be contributed back so everyone can benefit.
 
+### ❗ ✨✨✨ Polkadot APAC hackathon submission ✨✨✨❗
+
+Pocket Dimension's hackathon submission is our implementation of IPFS in Substrate Runtime! (Frame V3)
+
+It's a fully functional IPFS node in the runtime that's able to communicate P2P across its swarm of peers.
+
+Using our IPFS pallet you can create a "Pocket Dimension" where data can be added through an IPFS command that's picked up and processed by an offchain worker. If things are successful, then the offchain worker will log and send the response from IPFS.
+
+### Code can be found in the pull request 
+https://github.com/DanHenton/pocket-substrate/pull/8
+
+### Features:
+IPFS into substrates runtime
+- Add rusts implementation of IPFS into the substrate runtime, where an off-chain worker is able to interact with IPFS and connected peers.
+
+**pallet-ipfs-core:**
+- Provides scaffolding for other pallets to easily interface with IPFS via extrinsics.
+
+**pallet-ipfs-example:**
+- Almost full implementation of available IPFS commands with a matching extrinsic. Coupled to ipfs-core pallet.
+- Each extrinsic calls a single IPFS command.
+
+**pallet-pocket-mints:**
+- Example minting pallet that verifies the existence and location of a CID before minting it to an address. Coupled to ipfs-core pallet.
+
+For Implementing a new IPFS pallet see our ipfs-template [pull request](https://github.com/DanHenton/pocket-substrate/pull/10)
+
+### How to run:
+1) Download or clone the repository and navigate to it in the terminal.
+2) Compile substrate using: (Make sure you have at least 5GB of available RAM :wink: )
+```
+    cargo build --release
+    ./target/release/substrate --dev --tmp
+    
+    Or 
+    
+    cargo run --release -- --dev --tmp
+```
+3) Your node should start up with something similar to the bellow image. Note that we can see the IPFS PeerID . This means we have successfully launched substrate with IPFS in its runtime. ![node-start](https://user-images.githubusercontent.com/7565646/145338654-58595d55-bbcd-4882-95e7-b83751ee00f8.png)
+
+
+4) Using https://polkadot.js.org/apps/#/explorer connect to locally running node
+5) Navigate to https://polkadot.js.org/apps/#/extrinsics here you can interact with the `IpfsExample` and `PocketMints` pallets.
+6) View events in the explorer:  https://polkadot.js.org/apps/#/explorer
+7) See the updates to the chainstate:  https://polkadot.js.org/apps/#/chainstate
+
+### Architecture overview:
+
+**Architecture of the IPFS Pallets:**
+![pocket-dimension-pallets](https://user-images.githubusercontent.com/7565646/145331139-eb6a1254-7bd0-4595-916f-f279ec81b5e2.png)
+
+**Example process flow of interacting with the IPFS in substrate runtime:**
+![Pocket-dimensions-interacting-with-ipfs](https://user-images.githubusercontent.com/7565646/145332202-fb829876-4b1f-44f0-8d06-d0878bd8cd53.png)
+
+ 
