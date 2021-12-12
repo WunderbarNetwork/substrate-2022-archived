@@ -103,6 +103,6 @@ pub fn config_endowed(
 		transaction_storage: Default::default(),
 		scheduler: Default::default(),
 		transaction_payment: Default::default(),
-		rs_ipfs: Default::default(),
+		ipfs_example: Default::default(),
 	}
 }
