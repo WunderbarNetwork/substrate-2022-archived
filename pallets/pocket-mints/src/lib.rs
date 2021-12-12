@@ -3,24 +3,11 @@
 /// Edit this file to define custom logic or remove it if it is not needed.
 /// Learn more about FRAME and the core library of Substrate FRAME pallets:
 /// <https://docs.substrate.io/v3/runtime/frame>
-use codec::{Decode, Encode};
 use frame_system::offchain::{AppCrypto, CreateSignedTransaction, SendSignedTransaction, Signer};
-use sp_runtime::{
-	offchain::{
-		ipfs,
-		storage::{MutateStorageError, StorageRetrievalError, StorageValueRef},
-	},
-	RuntimeDebug,
-};
-
 use frame_support::{dispatch::DispatchResult, traits::Randomness};
-
-#[cfg(feature = "std")]
-use frame_support::serde::{Deserialize, Serialize};
 
 use core::convert::TryInto;
 use log::{error, info};
-use sp_core::offchain::{Duration, IpfsRequest, IpfsResponse, OpaqueMultiaddr, Timestamp};
 use sp_std::{str, vec::Vec};
 
 #[cfg(test)]
@@ -68,10 +55,9 @@ pub mod pallet {
 	use super::*;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
-	use pallet_ipfs_core as IpfsCore;
 	use pallet_ipfs_core::{
-		addresses_to_utf8_safe_bytes, generate_id, ipfs_request, ocw_parse_ipfs_response,
-		ocw_process_command, CommandRequest, Error as IpfsError, Event as IpfsEvent, IpfsCommand,
+		generate_id, ocw_parse_ipfs_response, ocw_process_command,
+		CommandRequest, IpfsCommand, Error as IpfsError
 	};
 	use sp_core::crypto::KeyTypeId;
 
@@ -252,7 +238,7 @@ pub mod pallet {
 				identifier: command_request.identifier,
 				data: data.clone(),
 			});
-			for (account, result) in &results {
+			for (_account, result) in &results {
 				match result {
 					Ok(()) => {
 						info!("callback sent")
