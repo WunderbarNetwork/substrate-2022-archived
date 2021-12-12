@@ -29,13 +29,13 @@ pallet-ipfs-core = { default-features = false, version = "4.0.0-dev", path = "..
 [features]
 default = ['std']
 std = [
-	'codec/std',
-	'scale-info/std',
-	'frame-support/std',
-	'frame-system/std',
-	'frame-benchmarking/std',
-	'sp-std/std',
-	'pallet-ipfs-core/std',
+    'codec/std',
+    'scale-info/std',
+    'frame-support/std',
+    'frame-system/std',
+    'frame-benchmarking/std',
+    'sp-std/std',
+    'pallet-ipfs-core/std',
 ]
 
 runtime-benchmarks = ["frame-benchmarking"]
