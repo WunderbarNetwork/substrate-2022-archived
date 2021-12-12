@@ -63,22 +63,35 @@ For Implementing a new IPFS pallet see our ipfs-template [pull request](https://
     
     cargo run --release -- --dev --tmp
 ```
-3) Your node should start up with something similar to the bellow image. Note that we can see the IPFS PeerID . This means we have successfully launched substrate with IPFS in its runtime. 
-![node-start](https://user-images.githubusercontent.com/7565646/145338654-58595d55-bbcd-4882-95e7-b83751ee00f8.png)
+3) Your node should start up with something similar to the bellow image. Note that we can see the IPFS PeerID . This means we have successfully launched substrate with IPFS in its runtime. ![node-start](https://user-images.githubusercontent.com/7565646/145338654-58595d55-bbcd-4882-95e7-b83751ee00f8.png)
 
 
 4) Using https://polkadot.js.org/apps/#/explorer connect to locally running node
-5) Navigate to https://polkadot.js.org/apps/#/extrinsics here you can interact with the `IpfsExample` and `PocketMints` pallets.
+5) Navigate to https://polkadot.js.org/apps/#/extrinsics here you can interact with the `ipfsExample` and `PocketMints` pallets.
 6) View events in the explorer:  https://polkadot.js.org/apps/#/explorer
 7) See the updates to the chainstate:  https://polkadot.js.org/apps/#/chainstate
+
+```
+Using ipfsExample Pallet: 
+Submit and sign ipfsAddBytes extrinsic with "Hello world"
+In the Explorer tab, see event "ipfsExample.AddedCid" to find the returned CID "Qme2yvVdPdpHiGmoPMgTJubrJ7rud3SHSCU7PqNUvYBecA"
+
+Submit and sign ipfsCatBytes extrinsic with the CID from the event
+In the Explorer tab, see event "ipfsExample.CatBytes" to find the bytes "Hello world"
+```
+```
+Using pocketMints Pallet:
+Submit and sign mintCid with an empty address ("") and a CID. We will use the same CID from ipfsExample usecase above "Qme2yvVdPdpHiGmoPMgTJubrJ7rud3SHSCU7PqNUvYBecA"
+In the Explorer tab, see event "pocketMints.MintedCid" with returned CID 
+
+In the Developer tab, go to ChainState, selected state query pocketMints
+Then select walletAssets for the original signer, click + button, find the returned CID from last event "Qme2yvVdPdpHiGmoPMgTJubrJ7rud3SHSCU7PqNUvYBecA" 
+```
 
 ### Architecture overview:
 
 **Architecture of the IPFS Pallets:**
-<br/>
 ![pocket-dimension-pallets](https://user-images.githubusercontent.com/7565646/145698271-4dc1a728-78e6-4310-9dc5-c0712a252490.png)
 
-<br/><br/>
 **Example process flow of interacting with the IPFS in substrate runtime:**
-<br/>
 ![Pocket-dimensions-interacting-with-ipfs](https://user-images.githubusercontent.com/7565646/145332202-fb829876-4b1f-44f0-8d06-d0878bd8cd53.png)
