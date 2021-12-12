@@ -1272,12 +1272,6 @@ impl pallet_pocket_mints::Config for Runtime {
 	type IpfsRandomness = RandomnessCollectiveFlip;
 }
 
-parameter_types! {
-	pub const GracePeriod: BlockNumber = 1;
-	pub const UnsignedInterval: BlockNumber = 2;
-	pub const UnsignedPriority: TransactionPriority = 3;
-}
-
 construct_runtime!(
 	pub enum Runtime where
 		Block = Block,
