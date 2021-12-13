@@ -138,6 +138,7 @@ members = [
 	"frame/bags-list/fuzzer",
 	"pallets/template",
 	"pallets/ipfs-exmaple",
+	"pallets/ipfs-template",
 	"pallets/ipfs-core",
 	"pallets/pocket-mints",
 	"primitives/api",
