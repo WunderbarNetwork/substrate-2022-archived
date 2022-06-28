@@ -396,16 +396,16 @@ checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 
 [[package]]
 name = "backtrace"
-version = "0.3.64"
+version = "0.3.65"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e121dee8023ce33ab248d9ce1493df03c3b38a659b240096fcbd7048ff9c31f"
+checksum = "11a17d453482a265fd5f8479f2a3f405566e6ca627837aaddb85af8b1ab8ef61"
 dependencies = [
  "addr2line",
  "cc",
  "cfg-if 1.0.0",
  "libc",
- "miniz_oxide",
- "object 0.27.1",
+ "miniz_oxide 0.5.3",
+ "object",
  "rustc-demangle",
 ]
 
@@ -2073,7 +2073,7 @@ dependencies = [
  "crc32fast",
  "libc",
  "libz-sys",
- "miniz_oxide",
+ "miniz_oxide 0.4.4",
 ]
 
 [[package]]
@@ -4347,6 +4347,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "miniz_oxide"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f5c75688da582b8ffc1f1799e9db273f32133c49e048f614d22ec3256773ccc"
+dependencies = [
+ "adler",
+]
+
+[[package]]
 name = "mio"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5126,15 +5135,6 @@ checksum = "19e64526ebdee182341572e50e9ad03965aa510cd94427a4549448f285e957a1"
 dependencies = [
  "hermit-abi",
  "libc",
-]
-
-[[package]]
-name = "object"
-version = "0.27.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67ac1d3f9a1d3616fd9a60c8d74296f22406a238b6a72f5cc1e6f314df4ffbf9"
-dependencies = [
- "memchr",
 ]
 
 [[package]]
@@ -11807,7 +11807,7 @@ dependencies = [
  "leb128",
  "libloading 0.7.0",
  "loupe",
- "object 0.28.3",
+ "object",
  "rkyv",
  "serde",
  "tempfile",
@@ -11846,7 +11846,7 @@ version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "24ce18ac2877050e59580d27ee1a88f3192d7a31e77fbba0852abc7888d6e0b5"
 dependencies = [
- "object 0.28.3",
+ "object",
  "thiserror",
  "wasmer-compiler",
  "wasmer-types",
@@ -11943,7 +11943,7 @@ dependencies = [
  "lazy_static",
  "libc",
  "log",
- "object 0.28.3",
+ "object",
  "once_cell",
  "paste 1.0.6",
  "psm",
@@ -11995,7 +11995,7 @@ dependencies = [
  "gimli 0.26.1",
  "log",
  "more-asserts",
- "object 0.28.3",
+ "object",
  "target-lexicon",
  "thiserror",
  "wasmparser 0.85.0",
@@ -12014,7 +12014,7 @@ dependencies = [
  "indexmap",
  "log",
  "more-asserts",
- "object 0.28.3",
+ "object",
  "serde",
  "target-lexicon",
  "thiserror",
@@ -12035,7 +12035,7 @@ dependencies = [
  "cpp_demangle",
  "gimli 0.26.1",
  "log",
- "object 0.28.3",
+ "object",
  "region 2.2.0",
  "rustc-demangle",
  "rustix",
@@ -12055,7 +12055,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6d5dd480cc6dc0a401653e45b79796a3317f8228990d84bc2271bdaf0810071"
 dependencies = [
  "lazy_static",
- "object 0.28.3",
+ "object",
  "rustix",
 ]
 
