@@ -24,7 +24,7 @@ hyper-rustls = { version = "0.23.0", features = ["http2"] }
 num_cpus = "1.13"
 once_cell = "1.8"
 parking_lot = "0.12.0"
-rand = "0.7.2"
+rand = "0.8.5"
 threadpool = "1.7"
 tracing = "0.1.29"
 sc-client-api = { version = "4.0.0-dev", path = "../api" }
@@ -34,6 +34,11 @@ sp-api = { version = "4.0.0-dev", path = "../../primitives/api" }
 sp-core = { version = "6.0.0", path = "../../primitives/core" }
 sp-offchain = { version = "4.0.0-dev", path = "../../primitives/offchain" }
 sp-runtime = { version = "6.0.0", path = "../../primitives/runtime" }
+tokio = { version = "1.10", default-features = false, features = ["full"] }
+
+# IPFS
+cid = { version = "0.5.1", cid = "*", multihash = "0.10" }
+ipfs = { git = "https://github.com/rs-ipfs/rust-ipfs" }
 
 [dev-dependencies]
 lazy_static = "1.4.0"

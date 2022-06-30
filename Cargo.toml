@@ -2,9 +2,9 @@
 resolver = "2"
 
 members = [
-	"bin/node-template/node",
-	"bin/node-template/pallets/template",
-	"bin/node-template/runtime",
+#	"bin/node-template/node",
+#	"bin/node-template/pallets/template",
+#	"bin/node-template/runtime",
 	"bin/node/bench",
 	"bin/node/cli",
 	"bin/node/executor",
@@ -152,6 +152,13 @@ members = [
 	"frame/utility",
 	"frame/vesting",
 	"frame/whitelist",
+	"frame/bags-list",
+	"frame/bags-list/remote-tests",
+	"frame/bags-list/fuzzer",
+	# "pallets/template",
+	# "pallets/ipfs-exmaple",
+	# "pallets/ipfs-core",
+	# "pallets/pocket-mints",
 	"primitives/api",
 	"primitives/api/proc-macro",
 	"primitives/api/test",

@@ -108,6 +108,12 @@ pallet-uniques = { version = "4.0.0-dev", default-features = false, path = "../.
 pallet-vesting = { version = "4.0.0-dev", default-features = false, path = "../../../frame/vesting" }
 pallet-whitelist = { version = "4.0.0-dev", default-features = false, path = "../../../frame/whitelist" }
 
+# Additional pallets
+# pallet-template = { version = "3.0.0", default-features = false, path = "../../../pallets/template" }
+# pallet-ipfs-core = { version = "4.0.0-dev", default-features = false, path = "../../../pallets/ipfs-core" }
+# pallet-ipfs-example = { version = "4.0.0-dev", default-features = false, path = "../../../pallets/ipfs-exmaple" }
+# pallet-pocket-mints = { version = "4.0.0-dev", default-features = false, path = "../../../pallets/pocket-mints" }
+
 [build-dependencies]
 substrate-wasm-builder = { version = "5.0.0-dev", path = "../../../utils/wasm-builder" }
 
@@ -189,6 +195,11 @@ std = [
 	"sp-io/std",
 	"pallet-child-bounties/std",
 	"pallet-alliance/std",
+	"sp-io/std",
+	# "pallet-template/std",
+	# "pallet-ipfs-core/std",
+	# "pallet-ipfs-example/std",
+	# "pallet-pocket-mints/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -241,6 +252,10 @@ runtime-benchmarks = [
 	"pallet-whitelist/runtime-benchmarks",
 	"frame-system-benchmarking",
 	"hex-literal",
+	# "pallet-template/runtime-benchmarks",
+	# "pallet-ipfs-core/runtime-benchmarks",
+	# "pallet-ipfs-example/runtime-benchmarks",
+	# "pallet-pocket-mints/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-executive/try-runtime",
@@ -290,6 +305,10 @@ try-runtime = [
 	"pallet-utility/try-runtime",
 	"pallet-vesting/try-runtime",
 	"pallet-whitelist/try-runtime",
+	"pallet-gilt/try-runtime",
+	# "pallet-ipfs-core/try-runtime",
+	# "pallet-ipfs-example/try-runtime",
+	# "pallet-pocket-mints/try-runtime",
 ]
 # Make contract callable functions marked as __unstable__ available. Do not enable
 # on live chains as those are subject to change.
