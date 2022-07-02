@@ -126,7 +126,7 @@ impl<Client, Block: traits::Block> OffchainWorkers<Client, Block> {
 
 		tracing::event!(
 			Level::INFO,
-			"IPFS: Node started with PeerId {} and address {:?}",
+			"🗄️ IPFS: Node started with PeerId {} and address {:?} 🗄️",
 			ipfs_info.0.to_peer_id(),
 			ipfs_info.1
 		);
