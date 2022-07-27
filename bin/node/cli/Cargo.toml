@@ -42,6 +42,8 @@ futures = "0.3.21"
 hex-literal = "0.3.4"
 log = "0.4.17"
 rand = "0.8"
+ipfs = { git = "https://github.com/rs-ipfs/rust-ipfs" }
+structopt = { version = "0.3.8", optional = true }
 
 # primitives
 sp-authority-discovery = { version = "4.0.0-dev", path = "../../../primitives/authority-discovery" }
