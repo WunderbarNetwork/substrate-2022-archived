@@ -372,6 +372,7 @@ pub fn new_full_base(
 			task_manager.spawn_handle(),
 			client.clone(),
 			network.clone(),
+			task_manager.ipfs_rt.clone(),
 		);
 	}
 
