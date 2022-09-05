@@ -934,7 +934,7 @@ name = "chain-spec-builder"
 version = "2.0.0"
 dependencies = [
  "ansi_term",
- "clap 3.1.18",
+ "clap 3.2.20",
  "node-cli",
  "rand 0.8.5",
  "sc-chain-spec",
@@ -1026,16 +1026,16 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.1.18"
+version = "3.2.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2dbdf4bdacb33466e854ce889eee8dfd5729abf7ccd7664d0a2d60cd384440b"
+checksum = "23b71c3ce99b7611011217b366d923f1d0a7e07a92bb2dbf1e84508c673ca3bd"
 dependencies = [
  "atty",
  "bitflags",
  "clap_derive",
  "clap_lex",
  "indexmap",
- "lazy_static",
+ "once_cell",
  "strsim 0.10.0",
  "termcolor",
  "textwrap 0.15.0",
@@ -1043,18 +1043,18 @@ dependencies = [
 
 [[package]]
 name = "clap_complete"
-version = "3.0.2"
+version = "3.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a394f7ec0715b42a4e52b294984c27c9a61f77c8d82f7774c5198350be143f19"
+checksum = "e4179da71abd56c26b54dd0c248cc081c1f43b0a1a7e8448e28e57a29baa993d"
 dependencies = [
- "clap 3.1.18",
+ "clap 3.2.20",
 ]
 
 [[package]]
 name = "clap_derive"
-version = "3.1.18"
+version = "3.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25320346e922cffe59c0bbc5410c8d8784509efb321488971081313cb1e1a33c"
+checksum = "ea0c8bce528c4be4da13ea6fead8965e95b6073585a2f05204bd8f4119f82a65"
 dependencies = [
  "heck 0.4.0",
  "proc-macro-error",
@@ -1065,9 +1065,9 @@ dependencies = [
 
 [[package]]
 name = "clap_lex"
-version = "0.2.0"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a37c35f1112dad5e6e0b1adaff798507497a18fceeb30cceb3bae7d1427b9213"
+checksum = "2850f2f5a82cbf437dd5af4d49848fbdfc27c157c3d010345776f952765261c5"
 dependencies = [
  "os_str_bytes",
 ]
@@ -2191,7 +2191,7 @@ version = "4.0.0-dev"
 dependencies = [
  "Inflector",
  "chrono",
- "clap 3.1.18",
+ "clap 3.2.20",
  "comfy-table",
  "frame-benchmarking",
  "frame-support",
@@ -2273,7 +2273,7 @@ dependencies = [
 name = "frame-election-solution-type-fuzzer"
 version = "2.0.0-alpha.5"
 dependencies = [
- "clap 3.1.18",
+ "clap 3.2.20",
  "frame-election-provider-solution-type",
  "frame-election-provider-support",
  "frame-support",
@@ -5095,7 +5095,7 @@ dependencies = [
 name = "node-bench"
 version = "0.9.0-dev"
 dependencies = [
- "clap 3.1.18",
+ "clap 3.2.20",
  "derive_more",
  "fs_extra",
  "futures",
@@ -5134,7 +5134,7 @@ version = "3.0.0-dev"
 dependencies = [
  "assert_cmd",
  "async-std",
- "clap 3.1.18",
+ "clap 3.2.20",
  "clap_complete",
  "criterion",
  "frame-benchmarking-cli",
@@ -5254,7 +5254,7 @@ dependencies = [
 name = "node-inspect"
 version = "0.9.0-dev"
 dependencies = [
- "clap 3.1.18",
+ "clap 3.2.20",
  "parity-scale-codec",
  "sc-cli",
  "sc-client-api",
@@ -5313,7 +5313,7 @@ dependencies = [
 name = "node-runtime-generate-bags"
 version = "3.0.0"
 dependencies = [
- "clap 3.1.18",
+ "clap 3.2.20",
  "generate-bags",
  "kitchensink-runtime",
 ]
@@ -5322,7 +5322,7 @@ dependencies = [
 name = "node-template"
 version = "4.0.0-dev"
 dependencies = [
- "clap 3.1.18",
+ "clap 3.2.20",
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-system",
@@ -8459,7 +8459,7 @@ name = "sc-cli"
 version = "0.10.0-dev"
 dependencies = [
  "chrono",
- "clap 3.1.18",
+ "clap 3.2.20",
  "fdlimit",
  "futures",
  "hex",
@@ -10536,7 +10536,7 @@ dependencies = [
 name = "sp-npos-elections-fuzzer"
 version = "2.0.0-alpha.5"
 dependencies = [
- "clap 3.1.18",
+ "clap 3.2.20",
  "honggfuzz",
  "parity-scale-codec",
  "rand 0.8.5",
@@ -11009,7 +11009,7 @@ dependencies = [
 name = "subkey"
 version = "2.0.2"
 dependencies = [
- "clap 3.1.18",
+ "clap 3.2.20",
  "sc-cli",
 ]
 
@@ -11037,7 +11037,7 @@ dependencies = [
 name = "substrate-frame-cli"
 version = "4.0.0-dev"
 dependencies = [
- "clap 3.1.18",
+ "clap 3.2.20",
  "frame-support",
  "frame-system",
  "sc-cli",
@@ -11844,7 +11844,7 @@ checksum = "59547bce71d9c38b83d9c0e92b6066c4253371f15005def0c30d9657f50c7642"
 name = "try-runtime-cli"
 version = "0.10.0-dev"
 dependencies = [
- "clap 3.1.18",
+ "clap 3.2.20",
  "frame-try-runtime",
  "jsonrpsee",
  "log",
